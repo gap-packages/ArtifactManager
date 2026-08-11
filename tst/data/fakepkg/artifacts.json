@@ -1,0 +1,35 @@
+{
+  "gapArtifactManifest": 1,
+  "package": "amfake",
+  "artifacts": {
+    "groups": {
+      "description": "Groups of degree 32",
+      "version": "1.0",
+      "size": 314572800,
+      "license": "GPL-2.0-or-later",
+      "provenance": "https://doi.org/10.5281/zenodo.0000000",
+      "strip": 1,
+      "download": [
+        { "url": "https://example.org/groups32.tar.gz",
+          "sha256": "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0",
+          "size": 300000000 },
+        { "url": "https://mirror.example.org/groups32.tar.gz",
+          "sha256": "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0" }
+      ]
+    },
+    "table": {
+      "description": "A single compressed table",
+      "download": [
+        { "url": "https://example.org/table.txt.gz",
+          "sha256": "1111111111111111111111111111111111111111111111111111111111111111" }
+      ]
+    },
+    "fromTheFuture": {
+      "kind": "tree",
+      "download": [
+        { "url": "https://example.org/index.json",
+          "sha256": "2222222222222222222222222222222222222222222222222222222222222222" }
+      ]
+    }
+  }
+}

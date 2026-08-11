@@ -47,7 +47,11 @@ ArchiveURL      := Concatenation( ~.SourceRepository.URL,
 
 ArchiveFormats := ".tar.gz",
 
-AbstractHTML   :=  "",
+AbstractHTML   :=  "The <span class=\"pkgname\">ArtifactManager</span> package lets GAP \
+packages ship large data sets separately from the package itself.  A package \
+declares its <em>artifacts</em> in a file <code>artifacts.json</code>; \
+<span class=\"pkgname\">ArtifactManager</span> downloads them on demand, verifies \
+them against a SHA256 checksum, and caches them in a location the user controls.",
 
 PackageDoc := rec(
   BookName  := "ArtifactManager",
@@ -60,8 +64,14 @@ PackageDoc := rec(
 
 Dependencies := rec(
   GAP := ">= 4.13",
-  NeededOtherPackages := [ ],
-  SuggestedOtherPackages := [ ],
+  # 'utils' provides 'Download', the GAP ecosystem's common download API.
+  NeededOtherPackages := [ [ "utils", ">= 0.77" ] ],
+  # 'IO' stands in for functionality GAP itself does not provide yet: file
+  # sizes, atomic rename, chunked binary reads, and the current time.  Without
+  # it we fall back to external programs, which works but is less reliable.
+  # (JSON is parsed by ArtifactManager itself; see gap/json.gi for why we do
+  # not use the 'json' package even when it is available.)
+  SuggestedOtherPackages := [ [ "IO", ">= 4.7" ] ],
   ExternalConditions := [ ],
 ),
 
