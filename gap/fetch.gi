@@ -82,26 +82,11 @@ function( url, target )
               error := Concatenation( "could not copy ", path ) );
 end );
 
-# How suitable a download backend is for fetching an artifact.  Lower is
-# better; backends are tried in this order.
+# Suitability of a download backend; lower is tried first.  'Download_Methods'
+# is ordered worst-first for our purposes.
 #
-# The order in 'Download_Methods' is not the order we want:
-#
-#  * curlInterface's 'DownloadURL' comes first there, but it has no way to
-#    stream to a file -- it builds the whole response as a GAP string and only
-#    then writes it out.  Fine for a table of contents, fatal for a data set of
-#    any size.  TODO(U15): give curlInterface an API that writes straight to a
-#    file, and this demotion disappears.
-#
-#  * IO's 'SingleHTTPRequest' speaks plain HTTP only and does not follow
-#    redirects.  It reports a 302 as a *successful* download of an empty body,
-#    so without the checksum we would happily install nothing at all.  Since
-#    redirects are how essentially every data host works, this must be the
-#    last resort rather than an early choice.
-#
-# TODO(U13): matching on backend names is a hack.  utils should let each
-# backend advertise what it can do -- streams to a file, follows redirects,
-# speaks https -- and then this becomes a query instead of a lookup table.
+# TODO(U13): matching on names is a hack; utils should let backends advertise
+# what they can do.
 BindGlobal( "AM_BackendRank",
 function( name, size )
   if name in [ "via curl", "via wget" ] then
@@ -283,12 +268,8 @@ function( payload, levels )
   for i in [ 1 .. levels ] do
     entries := Difference( DirectoryContents( payload ), [ ".", ".." ] );
 
-    # Archives built on macOS routinely carry AppleDouble companions
-    # ("._name") and .DS_Store next to the real top-level directory, and
-    # archives built anywhere carry the odd dot-file.  Those must not stop us
-    # from recognising a single top-level directory -- they are exactly the
-    # entries nobody meant to ship.  They are left where they are rather than
-    # deleted; we do not silently throw away data.
+    # macOS archives carry ._name and .DS_Store beside the real top-level
+    # directory; those must not defeat the strip.  Kept, not deleted.
     dirs := Filtered( entries,
                 e -> not StartsWith( e, "." ) and
                      IsDirectoryPath( Concatenation( payload, "/", e ) ) );

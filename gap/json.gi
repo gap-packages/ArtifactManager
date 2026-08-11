@@ -3,11 +3,9 @@
 #
 # json.gi: a small recursive descent JSON parser.  See json.gd.
 #
-# The parser reports failure by setting a field of its state record rather
-# than by raising an error.  GAP's 'Error' enters the break loop even inside
-# 'CALL_WITH_CATCH', which is not something a library function may do to an
-# unsuspecting caller, and disabling the break loop around every parse would
-# be worse.  So: after any call that might fail, check 'st.err'.
+# Failure sets 'st.err' rather than raising: GAP's 'Error' enters the break
+# loop even inside 'CALL_WITH_CATCH'.  Check 'st.err' after any call that can
+# fail.
 #
 
 BindGlobal( "AM_JsonWhitespace", " \t\r\n" );
@@ -286,13 +284,9 @@ function( str )
     ErrorNoReturn( "<str> must be a string" );
   fi;
 
-  # We deliberately do *not* delegate to the 'json' package when it happens to
-  # be loaded.  Two parsers would mean two sets of edge cases, and a manifest
-  # accepted on one machine but rejected on another is a horrible bug to
-  # chase.  Manifests are small, so a parser written in GAP costs nothing
-  # worth having; if that ever stops being true -- a table of contents with
-  # thousands of entries, say -- then delegating should replace this code
-  # rather than sit beside it.
+  # Not delegated to the 'json' package even when loaded: two parsers means
+  # two sets of edge cases, and a manifest that parses on one machine but not
+  # another is a horrible bug to chase.
   return AM_JsonParse( str );
 end );
 

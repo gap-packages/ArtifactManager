@@ -24,18 +24,13 @@
 #! @EndLog
 #!
 #! Here <C>hash16</C> is the first 16 digits of the SHA256 checksum of the
-#! file the artifact was downloaded from.  Putting the checksum into the path
-#! has three consequences worth knowing about:
+#! downloaded file.  Two things follow:
 #!
 #! <List>
-#! <Item>Changing the checksum in a declaration installs to a <E>different</E>
-#!   directory.  An out-of-date cache therefore cannot be mistaken for current
-#!   data, which is a bug class that has bitten other &GAP; packages.</Item>
-#! <Item>Two &GAP; sessions installing the same artifact at the same time can
-#!   only ever produce identical bytes, so whoever loses the race simply uses
-#!   the winner's copy.  No locking is needed.</Item>
-#! <Item>The metadata is a sibling file rather than a hidden subdirectory, so
-#!   the artifact directory contains nothing but the data.</Item>
+#! <Item>A changed checksum installs to a <E>different</E> directory, so an
+#!   out-of-date cache cannot be mistaken for current data.</Item>
+#! <Item>Concurrent installs of the same artifact produce identical bytes, so
+#!   the loser of the race uses the winner's copy.  No locking.</Item>
 #! </List>
 #!
 #! The <F>tmp</F> subdirectory is a sibling of <F>artifacts</F> so that the
