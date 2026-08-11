@@ -119,7 +119,7 @@ The full field reference is in the manual, chapter "Declaring artifacts".
 * **Artifacts up to about 1 GB.** The pieces needed for very large data
   (streaming downloads, resumable transfers, hashing a file without an
   external helper) are missing from GAP and from the packages we build on.
-  Issues have been filed; see `doc/upstream.md`. Until they land, something
+  Issues have been filed; see `dev/upstream.md`. Until they land, something
   like transgrp's 30 GB degree-48 data is out of scope, and pretending
   otherwise would only produce a path that runs out of memory on the wrong
   backend and restarts from zero on any interruption.

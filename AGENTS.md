@@ -31,9 +31,13 @@ Run the tests with
 They use `file://` URLs, so they need no network. `tst/download.tst` forks a
 local HTTP server and is skipped without the IO package.
 
-Rebuild the manual with `gap makedoc.g`. Everything it writes under `doc/` is
-gitignored except `upstream.md` and `upstream-drafts.md`.
+Rebuild the manual with `gap makedoc.g`. Everything under `doc/` is generated
+and gitignored; notes for contributors go in `dev/`.
 
 `gap/compat.gi` exists only to paper over things GAP lacks. Every function
-there carries a `TODO(U<n>)` naming the entry in `doc/upstream.md` that should
+there carries a `TODO(U<n>)` naming the entry in `dev/upstream.md` that should
 delete it. The file should shrink; do not let it grow.
+
+`dev/plan.md` is the original design plan, kept for the reasoning behind
+decisions that are not obvious from the code. It is history: where it and the
+code disagree, the code is right.
