@@ -208,7 +208,7 @@ function( src, dst )
   fi;
 
   # TODO(U6): no binary-safe read in GAP core, so this fallback mangles
-  # CRLF and silently gunzips '.gz' files.  It is a last resort only.
+  # '.gz' files, and on Windows translates line endings.  Last resort only.
   Info( InfoArtifactManager, 1,
         "no 'cp' found; copying via StringFile, which is not binary safe" );
   data := StringFile( src );

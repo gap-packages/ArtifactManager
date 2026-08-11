@@ -98,10 +98,11 @@ function( path )
   od;
 
   # (3) Last resort.  'StringFile' goes through 'InputTextFile', which
-  # normalises CRLF and transparently gunzips files whose name ends in '.gz'
-  # -- both of which silently produce the wrong digest.  We only get away with
-  # it because everything we hash is staged under a name with no extension
-  # (see AM_StagingDirectory), and we refuse to do it for large files.
+  # transparently gunzips files whose name ends in '.gz', and on systems that
+  # distinguish text and binary mode also translates line endings -- either
+  # of which silently produces the wrong digest.  We only get away with it
+  # because everything we hash is staged under a name with no extension (see
+  # AM_StagingDirectory), and we refuse to do it for large files.
   size := AM_FileSize( path );
   if size <> fail and size > AM_MaxUnsafeHashSize then
     Info( InfoArtifactManager, 1,
