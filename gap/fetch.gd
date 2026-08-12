@@ -16,7 +16,12 @@
 #!   Unlike <Ref Func="ArtifactDirectory"/>, this ignores the
 #!   <C>MaxAutoDownloadSize</C> preference: calling it is an explicit request
 #!   for the data, however big it is.
-#! @Arguments pkg, name
+#!
+#!   With <A>destination</A>, the artifact is unpacked there instead, and the
+#!   store is neither read nor written.  Use this when the data must go
+#!   somewhere specific, or must not be cached at all.  The directory is
+#!   created if necessary and must be empty.
+#! @Arguments pkg, name[, destination]
 #! @Returns <K>true</K> or <K>false</K>
 DeclareGlobalFunction( "FetchArtifact" );
 
@@ -51,6 +56,9 @@ DeclareGlobalFunction( "AM_Installed" );
 # Returns rec( success := true, path := <string> )
 #      or rec( success := false, error := <string> ).
 DeclareGlobalFunction( "AM_Install" );
+
+# Download, verify and unpack <decl> at <dest>, without using the store.
+DeclareGlobalFunction( "AM_FetchTo" );
 
 # Fetch <url> to the file <target>.  Returns rec( success, error ).
 DeclareGlobalFunction( "AM_Download" );

@@ -112,7 +112,7 @@ fail
 gap> ArtifactDeclaration("no-such-package", "x");
 fail
 gap> SortedList(List(AllArtifactDeclarations("amtest"), d -> d.name));
-[ "big", "broken", "gz", "macos", "mirrored", "tgz", "txt", "zip" ]
+[ "big", "broken", "gz", "macos", "mirrored", "symlink", "tgz", "txt", "zip" ]
 
 # A bad runtime declaration is a programming error, so here it does raise.
 gap> DeclareArtifacts("amtest", [rec(name := "x")]);
@@ -127,11 +127,11 @@ Error, each entry of <list> must be a record with a component 'name'
 # This is the path that matters for real packages, and the reason the manifest
 # lives at a fixed place in the package directory: GAP fills PackagesInfo in at
 # startup for every installed version of every package, so we find the file
-# without loading anything.  Here we fake an entry for a package that is not
-# really installed.
+# without loading anything.  Here a fixture package is registered for the
+# duration of the test.
 #
-gap> GAPInfo.PackagesInfo.amfake := [rec(InstallationPath :=
->      Filename(DirectoriesPackageLibrary("ArtifactManager","tst/data/fakepkg"), ""))];;
+gap> SetPackagePath("amfake",
+>      DirectoriesPackageLibrary("ArtifactManager", "tst/data/fakepkg")[1]);
 gap> SortedList(List(AllArtifactDeclarations("amfake"), d -> d.name));
 [ "groups", "table" ]
 

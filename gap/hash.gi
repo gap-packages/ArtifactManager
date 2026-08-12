@@ -125,3 +125,69 @@ InstallGlobalFunction( AM_HexSHA256String,
 function( str )
   return AM_NormalizeHex( HexSHA256( str ) );
 end );
+
+InstallGlobalFunction( AM_TreeSHA256,
+function( dir )
+  local state, entries, walk, ok;
+
+  if not IsDirectoryPath( dir ) then
+    return fail;
+  fi;
+
+  state := GAP_SHA256_INIT();
+  ok := true;
+
+  # Collect the entries of one directory, hash them in sorted order, and
+  # recurse.  Sorting per directory gives the same order as sorting the whole
+  # list of paths, because a path and its descendants share its prefix.
+  walk := function( rel )
+    local full, names, name, sub, size, chunk, f;
+
+    full := Concatenation( dir, rel );
+    names := Difference( DirectoryContents( full ), [ ".", ".." ] );
+    Sort( names );
+    for name in names do
+      sub := Concatenation( rel, "/", name );
+      if IsDirectoryPath( Concatenation( dir, sub ) ) then
+        GAP_SHA256_UPDATE( state, CopyToStringRep(
+            Concatenation( "d\000", sub, "\000" ) ) );
+        walk( sub );
+      else
+        size := AM_FileSize( Concatenation( dir, sub ) );
+        if size = fail then
+          ok := false;
+          return;
+        fi;
+        GAP_SHA256_UPDATE( state, CopyToStringRep( Concatenation(
+            "f\000", sub, "\000", String( size ), "\000" ) ) );
+        if AM_HaveIO() then
+          f := ValueGlobal( "IO_File" )( Concatenation( dir, sub ), "r" );
+          if f = fail then
+            ok := false;
+            return;
+          fi;
+          repeat
+            chunk := ValueGlobal( "IO_Read" )( f, 1048576 );
+            if IsString( chunk ) and Length( chunk ) > 0 then
+              GAP_SHA256_UPDATE( state, chunk );
+            fi;
+          until not IsString( chunk ) or Length( chunk ) = 0;
+          ValueGlobal( "IO_Close" )( f );
+        else
+          chunk := StringFile( Concatenation( dir, sub ) );
+          if chunk = fail then
+            ok := false;
+            return;
+          fi;
+          GAP_SHA256_UPDATE( state, CopyToStringRep( chunk ) );
+        fi;
+      fi;
+    od;
+  end;
+
+  walk( "" );
+  if not ok then
+    return fail;
+  fi;
+  return AM_HexOfSHA256Words( GAP_SHA256_FINAL( state ) );
+end );

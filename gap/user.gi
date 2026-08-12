@@ -316,10 +316,12 @@ function( arg )
   fi;
 
   if level = "full" then
-    # TODO: a per-file manifest, recorded at install time, would make this
-    # real.  Until then say so rather than pretending.
-    Info( InfoArtifactManager, 1, "a full check needs a per-file manifest, ",
-          "which this version does not record yet; checking sizes instead" );
+    if IsBound( installed.meta.tree_sha256 ) and
+       installed.meta.tree_sha256 <> fail then
+      return AM_TreeSHA256( installed.path ) = installed.meta.tree_sha256;
+    fi;
+    Info( InfoArtifactManager, 1, "no tree hash was declared for ", pkg, "/",
+          name, ", so its contents cannot be re-checked; comparing sizes" );
   fi;
 
   if not ( IsBound( installed.meta.bytes ) and installed.meta.bytes <> fail

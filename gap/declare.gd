@@ -85,6 +85,12 @@
 #! <Item>Optional, an integer.  If <C>1</C> and the archive unpacks to a
 #!   single top-level directory, the contents of that directory are moved up
 #!   one level.  Most tarballs want this.</Item>
+#! <Mark><C>tree_sha256</C></Mark>
+#! <Item>Optional.  A checksum of the unpacked data, computed by
+#!   <C>AM_TreeSHA256</C>.  With it the install is checked once more
+#!   after unpacking, and <Ref Func="VerifyArtifact"/> can re-check the
+#!   installed files rather than just their sizes.  The exact encoding is
+#!   still provisional; do not publish one yet.</Item>
 #! <Mark><C>description</C>, <C>version</C>, <C>license</C>,
 #!   <C>provenance</C></Mark>
 #! <Item>Optional strings, shown by <Ref Func="ShowArtifacts"/>.  Recording

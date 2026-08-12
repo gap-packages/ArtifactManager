@@ -162,6 +162,15 @@ function( pkg, name, decl )
     fi;
   od;
 
+  if IsBound( decl.tree_sha256 ) then
+    res.tree_sha256 := AM_NormalizeHex( decl.tree_sha256 );
+    if res.tree_sha256 = fail then
+      return "'tree_sha256' is not a hexadecimal string";
+    fi;
+  else
+    res.tree_sha256 := fail;
+  fi;
+
   if IsBound( decl.strip ) then
     if not ( IsInt( decl.strip ) and decl.strip >= 0 ) then
       return "'strip' must be a non-negative integer";

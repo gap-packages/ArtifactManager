@@ -90,9 +90,9 @@ DeclareGlobalFunction( "ArtifactInfo" );
 #!   was recorded at installation time; the default), or
 #!   <C>"full"</C> (re-read and re-hash everything).
 #!
-#!   Note that <C>"full"</C> is not implemented yet: it needs a per-file
-#!   manifest, which is planned for a later version.  Asking for it currently
-#!   performs a <C>"quick"</C> check and says so.
+#!   <C>"full"</C> needs the artifact to declare a <C>tree_sha256</C>; without
+#!   one there is nothing to compare against, and the check falls back to
+#!   <C>"quick"</C> and says so.
 #! @Arguments pkg, name[, level]
 #! @Returns <K>true</K> or <K>false</K>
 DeclareGlobalFunction( "VerifyArtifact" );

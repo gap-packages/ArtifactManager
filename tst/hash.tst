@@ -1,6 +1,6 @@
 # ArtifactManager: checksums
 #
-#@local zeros, d
+#@local zeros, d, t, h
 gap> START_TEST("hash.tst");
 gap> Read(Filename(DirectoriesPackageLibrary("ArtifactManager","tst"),"common.g"));
 
@@ -48,6 +48,34 @@ gap> AM_HexSHA256File(AMT_File("sample.txt.gz")) =
 >    AM_HexSHA256File(AMT_File("sample.txt"));
 false
 gap> AM_HexSHA256File(AMT_File("no-such-file"));
+fail
+
+#
+# Hashing a whole tree.
+#
+gap> t := Filename(DirectoryTemporary(), "tree");;
+gap> CreateDirectoryRecursively(Concatenation(t, "/sub"));;
+gap> FileString(Concatenation(t, "/a"), "one");;
+gap> FileString(Concatenation(t, "/sub/b"), "two");;
+gap> h := AM_TreeSHA256(t);;
+gap> Length(h);
+64
+gap> AM_TreeSHA256(t) = h;
+true
+
+# Contents are part of the digest ...
+gap> FileString(Concatenation(t, "/a"), "ONE");;
+gap> AM_TreeSHA256(t) = h;
+false
+gap> FileString(Concatenation(t, "/a"), "one");;
+gap> AM_TreeSHA256(t) = h;
+true
+
+# ... and so is an empty directory, which the files alone would not show.
+gap> CreateDirectoryRecursively(Concatenation(t, "/empty"));;
+gap> AM_TreeSHA256(t) = h;
+false
+gap> AM_TreeSHA256(Concatenation(t, "/no-such-directory"));
 fail
 
 #

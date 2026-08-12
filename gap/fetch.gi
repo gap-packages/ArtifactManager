@@ -301,10 +301,6 @@ function( payload, levels )
 end );
 
 
-#############################################################################
-##
-#F  AM_Install( <decl>, <explicit> )
-##
 BindGlobal( "AM_DownloadTimeout",
 function()
   local t;
@@ -315,67 +311,22 @@ function()
   return 0;
 end );
 
-BindGlobal( "AM_OfflineMode",
-function()
-  return AM_Environment( "ARTIFACTMANAGER_OFFLINE" ) <> fail or
-         UserPreference( "ArtifactManager", "AllowDownloads" ) = false;
-end );
 
-InstallGlobalFunction( AM_Install,
-function( decl, explicit )
-  local limit, store, staging, blob, errors, entry, key, target, res,
-        digest, extracted, usage, meta, done, cleanup;
+#############################################################################
+##
+#F  AM_ObtainInto( <decl>, <staging> )
+##
+##  Try each declared source in turn: download into <staging>/blob, verify it,
+##  unpack it into <staging>/payload.  Returns
+##    rec( success := true, entry := ..., key := ..., payload := ... )
+##  or rec( success := false, error := <string> ).
+##
+BindGlobal( "AM_ObtainInto",
+function( decl, staging )
+  local blob, errors, entry, key, res, digest, target, extracted, irregular;
 
-  # (1) already there?
-  res := AM_Installed( decl );
-  if res <> fail then
-    AM_TouchUsed( res.store, res.key );
-    return rec( success := true, path := res.path );
-  fi;
-
-  # (2) may we download at all, and is it small enough to do silently?
-  if AM_OfflineMode() then
-    return rec( success := false, error := Concatenation(
-        "the artifact ", decl.package, "/", decl.name, " is not available ",
-        "locally, and downloads are switched off.  Set the user preference ",
-        "ArtifactManager/AllowDownloads to 'true' to allow them." ) );
-  fi;
-
-  limit := UserPreference( "ArtifactManager", "MaxAutoDownloadSize" );
-  if not explicit and IsInt( limit ) and limit > 0 and decl.size <> fail
-     and decl.size > limit then
-    return rec( success := false, error := Concatenation(
-        "the artifact ", decl.package, "/", decl.name, " is ",
-        AM_HumanSize( decl.size ), ", which is more than the ",
-        AM_HumanSize( limit ), " that may be downloaded automatically.  ",
-        "Run  FetchArtifact(\"", decl.package, "\", \"", decl.name,
-        "\");  to download it, or raise the user preference ",
-        "ArtifactManager/MaxAutoDownloadSize." ) );
-  fi;
-
-  # (3) somewhere to work.  The staging directory lives inside the store, so
-  # that the final move is a rename within one filesystem, and thus atomic.
-  store := AM_WritableStore( decl.package );
-  if store = fail or store = "" then
-    return rec( success := false,
-        error := "no usable artifact store; see ArtifactStoreDiagnostics()" );
-  fi;
-  staging := AM_StagingDirectory( store );
-  if staging = fail then
-    return rec( success := false, error := Concatenation(
-        "could not create a staging directory in '", store, "'" ) );
-  fi;
   blob := Concatenation( staging, "/", AM_BlobName );
-
-  cleanup := function()
-    if IsExistingFile( staging ) then
-      AM_RemoveTree( staging );
-    fi;
-  end;
-
-  # (4) try each declared source in turn.
   errors := [];
-  done := fail;
   for entry in decl.download do
     key := AM_ArtifactKey( decl, entry );
 
@@ -422,16 +373,164 @@ function( decl, explicit )
       AM_StripLevels( target, decl.strip );
     fi;
 
-    done := rec( entry := entry, key := key, payload := target );
-    break;
+    irregular := AM_IrregularFiles( target );
+    if irregular = fail then
+      Info( InfoArtifactManager, 1, "cannot check the unpacked files for ",
+            "symbolic links; load the IO package or install 'find'" );
+    elif not IsEmpty( irregular ) then
+      Add( errors, Concatenation( entry.url, ": the archive contains ",
+               String( Length( irregular ) ), " entries that are neither ",
+               "regular files nor directories, the first being '",
+               irregular[1], "'" ) );
+      continue;
+    fi;
+
+    if decl.tree_sha256 <> fail then
+      Info( InfoArtifactManager, 2, "verifying tree hash" );
+      digest := AM_TreeSHA256( target );
+      if digest = fail then
+        Add( errors, Concatenation( entry.url,
+                 ": could not compute the tree hash of the unpacked data" ) );
+        continue;
+      elif digest <> decl.tree_sha256 then
+        Info( InfoArtifactManager, 1, "tree hash mismatch for ", entry.url,
+              "\n#I  expected ", decl.tree_sha256, "\n#I  got      ", digest );
+        Add( errors, Concatenation( entry.url, ": tree hash mismatch" ) );
+        continue;
+      fi;
+    fi;
+
+    return rec( success := true, entry := entry, key := key,
+                payload := target );
   od;
 
-  if done = fail then
-    cleanup();
+  return rec( success := false, error := Concatenation(
+      "could not obtain ", decl.package, "/", decl.name, ": ",
+      JoinStringsWithSeparator( errors, "; " ) ) );
+end );
+
+
+BindGlobal( "AM_OfflineMode",
+function()
+  return AM_Environment( "ARTIFACTMANAGER_OFFLINE" ) <> fail or
+         UserPreference( "ArtifactManager", "AllowDownloads" ) = false;
+end );
+
+#############################################################################
+##
+#F  AM_FetchTo( <decl>, <dest> )
+##
+InstallGlobalFunction( AM_FetchTo,
+function( decl, dest )
+  local parent, staging, res, ok, n;
+
+  if IsDirectoryPath( dest ) and
+     not IsEmpty( Difference( DirectoryContents( dest ), [ ".", ".." ] ) ) then
     return rec( success := false, error := Concatenation(
-        "could not obtain ", decl.package, "/", decl.name, ": ",
-        JoinStringsWithSeparator( errors, "; " ) ) );
+        "'", dest, "' already exists and is not empty" ) );
   fi;
+  if AM_OfflineMode() then
+    return rec( success := false,
+        error := "downloads are switched off; see ArtifactManager/AllowDownloads" );
+  fi;
+
+  # Stage beside the destination, not in the store: this path must not touch
+  # the store, and a sibling directory keeps the final move on one filesystem.
+  parent := AM_DirName( dest );
+  if CreateDirectoryRecursively( parent ) = fail then
+    return rec( success := false, error := Concatenation(
+        "could not create '", parent, "'" ) );
+  fi;
+  # Not AM_StagingDirectory: that lives inside a store, and AM_RemoveTree
+  # refuses to delete anything outside one.  This directory is ours.
+  n := 0;
+  repeat
+    n := n + 1;
+    staging := Concatenation( parent, "/.am-fetch-", String( n ) );
+  until not IsExistingFile( staging );
+  if CreateDirectoryRecursively( staging ) = fail then
+    return rec( success := false, error := Concatenation(
+        "could not create a staging directory in '", parent, "'" ) );
+  fi;
+
+  res := AM_ObtainInto( decl, staging );
+  if not res.success then
+    RemoveDirectoryRecursively( staging );
+    return res;
+  fi;
+
+  if IsDirectoryPath( dest ) then
+    RemoveDir( dest );
+  fi;
+  ok := AM_Rename( res.payload, dest );
+  RemoveDirectoryRecursively( staging );
+  if not ok then
+    return rec( success := false, error := Concatenation(
+        "could not move the unpacked data to '", dest, "'" ) );
+  fi;
+  Info( InfoArtifactManager, 2, "unpacked ", decl.package, "/", decl.name,
+        " at ", dest );
+  return rec( success := true, path := dest );
+end );
+
+
+InstallGlobalFunction( AM_Install,
+function( decl, explicit )
+  local limit, store, staging, target, res, usage, meta, done, cleanup;
+
+  # (1) already there?
+  res := AM_Installed( decl );
+  if res <> fail then
+    AM_TouchUsed( res.store, res.key );
+    return rec( success := true, path := res.path );
+  fi;
+
+  # (2) may we download at all, and is it small enough to do silently?
+  if AM_OfflineMode() then
+    return rec( success := false, error := Concatenation(
+        "the artifact ", decl.package, "/", decl.name, " is not available ",
+        "locally, and downloads are switched off.  Set the user preference ",
+        "ArtifactManager/AllowDownloads to 'true' to allow them." ) );
+  fi;
+
+  limit := UserPreference( "ArtifactManager", "MaxAutoDownloadSize" );
+  if not explicit and IsInt( limit ) and limit > 0 and decl.size <> fail
+     and decl.size > limit then
+    return rec( success := false, error := Concatenation(
+        "the artifact ", decl.package, "/", decl.name, " is ",
+        AM_HumanSize( decl.size ), ", which is more than the ",
+        AM_HumanSize( limit ), " that may be downloaded automatically.  ",
+        "Run  FetchArtifact(\"", decl.package, "\", \"", decl.name,
+        "\");  to download it, or raise the user preference ",
+        "ArtifactManager/MaxAutoDownloadSize." ) );
+  fi;
+
+  # (3) somewhere to work.  The staging directory lives inside the store, so
+  # that the final move is a rename within one filesystem, and thus atomic.
+  store := AM_WritableStore( decl.package );
+  if store = fail or store = "" then
+    return rec( success := false,
+        error := "no usable artifact store; see ArtifactStoreDiagnostics()" );
+  fi;
+  staging := AM_StagingDirectory( store );
+  if staging = fail then
+    return rec( success := false, error := Concatenation(
+        "could not create a staging directory in '", store, "'" ) );
+  fi;
+  cleanup := function()
+    if IsExistingFile( staging ) then
+      AM_RemoveTree( staging );
+    fi;
+  end;
+
+  # (4) try each declared source in turn.
+  res := AM_ObtainInto( decl, staging );
+  if not res.success then
+    cleanup();
+    return rec( success := false, error := res.error );
+  fi;
+  done := res;
+
 
   # (7) measure while we still can write to it.
   usage := AM_DirectorySize( done.payload );
@@ -470,6 +569,7 @@ function( decl, explicit )
                license := decl.license,
                provenance := decl.provenance,
                sha256 := done.key.sha256,
+               tree_sha256 := decl.tree_sha256,
                format := done.entry.format,
                url := done.entry.url,
                strip := decl.strip,
@@ -514,10 +614,28 @@ function( pkg, name )
 end );
 
 InstallGlobalFunction( FetchArtifact,
-function( pkg, name )
-  local decl, override, res;
+function( args... )
+  local pkg, name, dest, decl, override, res;
 
+  if not Length( args ) in [ 2, 3 ] then
+    ErrorNoReturn( "usage: FetchArtifact( <pkg>, <name>[, <destination>] )" );
+  fi;
+  pkg := args[1];
+  name := args[2];
   decl := AM_DeclarationOrError( pkg, name );
+
+  if Length( args ) = 3 then
+    dest := args[3];
+    if not IsString( dest ) then
+      ErrorNoReturn( "<destination> must be a string" );
+    fi;
+    res := AM_FetchTo( decl, UserHomeExpand( dest ) );
+    if res.success then
+      return true;
+    fi;
+    Info( InfoArtifactManager, 1, res.error );
+    return false;
+  fi;
 
   override := AM_OverrideFor( pkg, name );
   if override <> fail then

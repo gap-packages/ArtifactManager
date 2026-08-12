@@ -95,6 +95,11 @@ DeclareGlobalFunction( "AM_HaveIO" );
 # 'rec( bytes := <int>, files := <int> )'.  'bytes' may be 'fail'.
 DeclareGlobalFunction( "AM_DirectorySize" );
 
+# Relative paths of everything below <dir> that is neither a regular file nor
+# a directory: symbolic links, sockets, fifos, devices.  Returns 'fail' if the
+# check cannot be made at all.
+DeclareGlobalFunction( "AM_IrregularFiles" );
+
 # Make <path> and everything below it read-only.  Best effort; returns nothing.
 DeclareGlobalFunction( "AM_SetTreeReadOnly" );
 DeclareGlobalFunction( "AM_SetTreeWritable" );

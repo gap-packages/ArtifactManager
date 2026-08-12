@@ -4,7 +4,7 @@
 # verification, unpacking, installation, re-use, and removal, and it runs
 # everywhere.
 #
-#@local store, d, p, info, first, i
+#@local store, d, p, info, first, i, tgz
 gap> START_TEST("fetch.tst");
 gap> SetInfoLevel(InfoArtifactManager, 0);
 gap> Read(Filename(DirectoriesPackageLibrary("ArtifactManager","tst"),"common.g"));
@@ -59,6 +59,38 @@ gap> StringFile(Filename(d, "sub/inner.txt"));
 "inner file\n"
 gap> SortedList(Difference(DirectoryContents(Filename(d, "")), [".", ".."]));
 [ ".DS_Store", ".hidden", "hello.txt", "sub" ]
+
+#
+# An archive carrying a symbolic link is refused: a link is neither a regular
+# file nor a directory, and what it points at is not ours to install.
+#
+gap> FetchArtifact("amtest", "symlink");
+false
+gap> IsArtifactAvailable("amtest", "symlink");
+false
+
+#
+# Fetching to a caller-chosen directory, leaving the store alone.
+#
+gap> d := Filename(DirectoryTemporary(), "elsewhere");;
+gap> IsArtifactAvailable("amtest", "mirrored");
+false
+gap> FetchArtifact("amtest", "mirrored", d);
+true
+gap> StringFile(Concatenation(d, "/sample.txt"));
+"plain artifact\n"
+
+# and the store still knows nothing about it
+gap> IsArtifactAvailable("amtest", "mirrored");
+false
+
+# a non-empty destination is refused rather than overwritten
+gap> FetchArtifact("amtest", "mirrored", d);
+false
+gap> FetchArtifact("amtest", "mirrored", 42);
+Error, <destination> must be a string
+gap> FetchArtifact("amtest", "mirrored", d, d);
+Error, usage: FetchArtifact( <pkg>, <name>[, <destination>] )
 
 #
 # A single file, and a compressed single file.  The compressed one stays
@@ -152,12 +184,36 @@ gap> SetUserPreference("ArtifactManager", "AllowDownloads", true);
 #
 gap> info := ArtifactInfo("amtest");;
 gap> SortedList(List(info, r -> r.name));
-[ "big", "broken", "gz", "macos", "mirrored", "tgz", "txt", "zip" ]
+[ "big", "broken", "gz", "macos", "mirrored", "symlink", "tgz", "txt", "zip" ]
 gap> First(info, r -> r.name = "tgz").status;
 "installed"
 gap> First(info, r -> r.name = "broken").status;
 "absent"
 gap> First(info, r -> r.name = "tgz").bytes > 0;
+true
+
+#
+# A declared tree hash is checked again once the data is unpacked, and lets
+# VerifyArtifact re-read the installed files instead of trusting their sizes.
+#
+gap> tgz := rec(url := AMT_Url("sample.tar.gz"), sha256 := AMT_Sha("sample.tar.gz"));;
+gap> DeclareArtifacts("amtree", [
+>      rec(name := "good", strip := 1, download := [tgz],
+>          tree_sha256 := AM_TreeSHA256(
+>              Filename(ArtifactDirectory("amtest", "tgz"), ""))),
+>      rec(name := "bad", strip := 1, download := [tgz],
+>          tree_sha256 := AMT_WrongSha)]);
+gap> FetchArtifact("amtree", "good");
+true
+gap> VerifyArtifact("amtree", "good", "full");
+true
+gap> FetchArtifact("amtree", "bad");
+false
+gap> IsArtifactAvailable("amtree", "bad");
+false
+
+# Without one, a full check has nothing to compare against and says so.
+gap> VerifyArtifact("amtest", "tgz", "full");
 true
 
 #

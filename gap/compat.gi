@@ -363,6 +363,51 @@ end );
 
 #############################################################################
 ##
+#F  AM_IrregularFiles( <dir> )
+##
+InstallGlobalFunction( AM_IrregularFiles,
+function( dir )
+  local res, walk, st, kind, out;
+
+  if AM_HaveIO() then
+    res := [];
+    walk := function( rel )
+      local full, entry, st, kind;
+      full := Concatenation( dir, rel );
+      st := ValueGlobal( "IO_lstat" )( full );
+      if st = fail then
+        return;
+      fi;
+      # top four bits of the mode are the file type: 4 = directory,
+      # 8 = regular file, anything else is not ours to install
+      kind := QuoInt( st.mode mod 65536, 4096 );
+      if kind = 4 then
+        for entry in Difference( DirectoryContents( full ), [ ".", ".." ] ) do
+          walk( Concatenation( rel, "/", entry ) );
+        od;
+      elif kind <> 8 then
+        Add( res, rel );
+      fi;
+    end;
+    for st in Difference( DirectoryContents( dir ), [ ".", ".." ] ) do
+      walk( Concatenation( "/", st ) );
+    od;
+    return res;
+  fi;
+
+  if AM_Program( "find" ) <> fail then
+    out := AM_Exec( fail, "find", [ dir, "!", "-type", "f", "!", "-type", "d" ] );
+    if out.code = 0 then
+      return Filtered( SplitString( out.output, "\n" ), s -> s <> "" );
+    fi;
+  fi;
+
+  return fail;
+end );
+
+
+#############################################################################
+##
 #F  AM_SetTreeReadOnly( <path> ) . . . . . . . . . . . . . . . best effort
 ##
 BindGlobal( "AM_Chmod",

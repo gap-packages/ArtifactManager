@@ -34,3 +34,22 @@ DeclareGlobalFunction( "AM_HexSHA256File" );
 
 # SHA256 of a string, normalised.
 DeclareGlobalFunction( "AM_HexSHA256String" );
+
+# The canonical SHA256 digest of the directory tree <dir>, or 'fail'.
+#
+# PROVISIONAL: the encoding below must be agreed with lgoettgens/ArtifactManager
+# before any 'tree_sha256' is published; see gap-packages/ArtifactManager#1.
+#
+# Hashed input, with no separators beyond those shown:
+#
+#   for every entry, ordered by its relative path compared byte-wise,
+#     "d\0" <relative path> "\0"                       for a directory
+#     "f\0" <relative path> "\0" <size in decimal> "\0" <contents>
+#                                                      for a regular file
+#
+# Relative paths start with "/" and use "/" as separator.  Modes, owners and
+# timestamps are excluded: they depend on the umask and the archiver, not on
+# the data.  Directories are included so that an empty one is not invisible.
+# Symbolic links and special files cannot occur, since an archive containing
+# them is rejected before this runs.
+DeclareGlobalFunction( "AM_TreeSHA256" );
