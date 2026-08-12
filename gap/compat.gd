@@ -53,8 +53,8 @@ DeclareGlobalFunction( "CreateDirectoryRecursivelyOrError" );
 ##  Internal helpers.  Not documented, not part of the API.
 ##
 
-# TODO(U1): GAP has no wall clock. 'Runtime()' is CPU time.  We need real time
-# for the last-used stamps that the future garbage collector reads.
+# TODO(U1, gap#6504): GAP has no wall clock. 'Runtime()' is CPU time.  We need
+# real time for the last-used stamps that the future garbage collector reads.
 # Returns the number of seconds since the epoch, or 'fail' if we cannot tell.
 DeclareGlobalFunction( "AM_Now" );
 

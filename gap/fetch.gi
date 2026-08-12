@@ -133,7 +133,7 @@ function( url, target, opt )
     if m.isAvailable() then
       Info( InfoArtifactManager, 3, "trying download backend ", m.name );
       # 'Download' and its backends modify the option record they are given,
-      # so never reuse one.  TODO(U10).
+      # so never reuse one.  TODO(U10, utils#102).
       res := m.download( url, rec( target := target,
                                    maxTime := opt.maxTime ) );
       if res.success = true then
@@ -142,7 +142,8 @@ function( url, target, opt )
       Info( InfoArtifactManager, 3, "backend ", m.name, " failed: ",
             res.error );
       Add( errors, Concatenation( m.name, ": ", res.error ) );
-      # wget removes a partial target on failure, curl does not.  TODO(U11).
+      # wget removes a partial target on failure, curl does not.
+      # TODO(U11, utils#103).
       if IsExistingFile( target ) then
         RemoveFile( target );
       fi;
