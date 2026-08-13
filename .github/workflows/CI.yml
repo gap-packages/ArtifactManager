@@ -49,11 +49,6 @@ jobs:
         with:
           gap-version: ${{ matrix.gap-version }}
       - uses: gap-actions/build-pkg@v3
-      # TEMPORARY: find out why a zip extracts differently under Cygwin.
-      - name: diagnose zip extraction
-        if: ${{ runner.os == 'Windows' }}
-        shell: C:\cygwin-bash-folder\bash.BAT --noprofile --norc -e -o pipefail {0}
-        run: gap -q -b dev/diag-windows.g
       - uses: gap-actions/run-pkg-tests@v4
       - uses: gap-actions/run-pkg-tests@v4
         if: ${{ runner.os != 'Windows' }}
