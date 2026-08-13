@@ -61,44 +61,33 @@
 #!
 #! <List>
 #! <Mark><C>download</C></Mark>
-#! <Item>Mandatory, a non-empty list of <E>alternatives</E>, tried in order.
-#!   Mirrors and different archive formats use the same mechanism.  Each entry
-#!   has a <C>url</C> and a <C>sha256</C>, and optionally a <C>format</C> and
-#!   a <C>size</C>.  Entries that share a checksum are mirrors of one another
-#!   and share one directory in the store; entries with different checksums
-#!   are looked for separately, so it does not matter which one a given user
-#!   happened to download.</Item>
-#! <Mark><C>format</C></Mark>
-#! <Item>One of <C>"tar.gz"</C>, <C>"tar.bz2"</C>, <C>"tar.xz"</C>,
-#!   <C>"tar"</C>, <C>"zip"</C>, <C>"file"</C>, <C>"file.gz"</C>.  If it is
-#!   omitted it is guessed from the URL.  A <C>"file.gz"</C> artifact is kept
-#!   compressed on disk, since &GAP;'s
-#!   <C>StringFile</C> decompresses transparently.
-#!   </Item>
+#! <Item>Mandatory, a non-empty list of <E>alternatives</E>, tried in order;
+#!   see below for what one entry contains.  Mirrors and different archive
+#!   formats use the same mechanism.  Entries that share a checksum are
+#!   mirrors of one another and share one directory in the store; entries with
+#!   different checksums are looked for separately, so it does not matter
+#!   which one a given user happened to download.</Item>
 #! <Mark><C>tree_sha256</C></Mark>
-#! <Item>Mandatory.  A checksum of the <E>unpacked</E> data, after
-#!   <C>strip</C> has been applied.  It is what makes two mirrors serving
-#!   byte-different archives of the same data interchangeable, it is checked
-#!   again once an archive has been unpacked, and it is what lets
-#!   <Ref Func="VerifyArtifact"/> re-read the installed files instead of
-#!   trusting their sizes.  <Ref Func="DescribeArtifactURL"/> computes it.
+#! <Item>Mandatory for an archive, and meaningless for a single file, whose
+#!   <C>sha256</C> already covers the bytes that land on disk.  A checksum of
+#!   the <E>unpacked</E> data, after <C>strip</C> has been applied.  It is
+#!   what makes two mirrors serving byte-different archives of the same data
+#!   interchangeable, it is checked again once an archive has been unpacked,
+#!   and it is what lets <Ref Func="VerifyArtifact"/> re-read the installed
+#!   files instead of trusting their sizes.
+#!   <Ref Func="DescribeArtifactURL"/> computes it.
 #!   <P/>
 #!   The value is the one git computes for a tree object, with SHA256 in place
 #!   of SHA1, so it can be checked against a repository created with
 #!   <C>git init --object-format=sha256</C>.  Two consequences follow from
 #!   git's rules: the owner execute bit is part of the checksum, and an empty
 #!   directory is not.</Item>
-#! <Mark><C>sha256</C></Mark>
-#! <Item>Mandatory.  The SHA256 checksum of the file that is downloaded, as a
-#!   hex string.  <Ref Func="DescribeArtifactURL"/> computes it for you.</Item>
-#! <Mark><C>size</C></Mark>
-#! <Item>Optional, in bytes.  Worth giving: it lets &ArtifactManager; tell the
-#!   user what a download is going to cost before it starts, and it is what
-#!   the <C>MaxAutoDownloadSize</C> preference compares against.</Item>
 #! <Mark><C>strip</C></Mark>
 #! <Item>Optional, an integer.  If <C>1</C> and the archive unpacks to a
 #!   single top-level directory, the contents of that directory are moved up
 #!   one level.  Most tarballs want this.</Item>
+#! <Mark><C>size</C></Mark>
+#! <Item>Optional, in bytes.</Item>
 #! <Mark><C>description</C>, <C>version</C>, <C>license</C>,
 #!   <C>provenance</C></Mark>
 #! <Item>Optional strings, shown by <Ref Func="ShowArtifacts"/>.  Recording
@@ -108,6 +97,26 @@
 #! <Item>Optional, a boolean.  Reserved: it will tell an installer whether to
 #!   fetch this artifact ahead of time.  Today everything is fetched on first
 #!   use.</Item>
+#! </List>
+#!
+#! Within one entry of <C>download</C>:
+#!
+#! <List>
+#! <Mark><C>url</C></Mark>
+#! <Item>Mandatory.</Item>
+#! <Mark><C>sha256</C></Mark>
+#! <Item>Mandatory.  The SHA256 checksum of the file that is downloaded, as a
+#!   hex string.  <Ref Func="DescribeArtifactURL"/> computes it for you.</Item>
+#! <Mark><C>format</C></Mark>
+#! <Item>One of <C>"tar.gz"</C>, <C>"tar.bz2"</C>, <C>"tar.xz"</C>,
+#!   <C>"tar"</C>, <C>"zip"</C>, <C>"file"</C>, <C>"file.gz"</C>.  If it is
+#!   omitted it is guessed from the URL.  A <C>"file.gz"</C> artifact is kept
+#!   compressed on disk, since &GAP;'s <C>StringFile</C> decompresses
+#!   transparently.</Item>
+#! <Mark><C>size</C></Mark>
+#! <Item>Optional, in bytes.  It lets &ArtifactManager; say what a download
+#!   will cost before it starts, and it is what the
+#!   <C>MaxAutoDownloadSize</C> preference compares against.</Item>
 #! </List>
 #!
 #! Fields that &ArtifactManager; does not know are ignored, and an artifact
