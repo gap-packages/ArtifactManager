@@ -51,13 +51,18 @@ gap> AM_DescribeURL(AMT_Url("sample.txt.gz"), "gz", "d").artifactSha256
 true
 
 # Without a format, the bytes decide -- a suggestion for a human to confirm,
-# never a run-time decision.
+# never a run-time decision.  Reading those bytes safely needs IO; without it
+# everything looks like "raw", which is why a manifest must say the format.
+gap> AM_DescribeURL(AMT_Url("sample.txt"), fail, "d").format;
+"raw"
+
+#@if IsPackageMarkedForLoading("IO", "")
 gap> AM_DescribeURL(AMT_Url("sample.tar.gz"), fail, "d").format;
 "tar.gz"
 gap> AM_DescribeURL(AMT_Url("sample.txt.gz"), fail, "d").format;
 "gz"
-gap> AM_DescribeURL(AMT_Url("sample.txt"), fail, "d").format;
-"raw"
+#@fi
+
 gap> AM_DescribeURL(AMT_Url("no-such-file.tar.gz"), "tar.gz", "d");
 fail
 gap> DescribeArtifactURL(AMT_Url("sample.txt"), "d", "raw", "x");

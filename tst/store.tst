@@ -124,9 +124,9 @@ gap> SetInfoLevel(InfoArtifactManager, 1);
 # becomes a member called '/usr/bin/tar:' and the archive is rejected as a
 # tarbomb.  This passed on macOS for months because bsdtar stays quiet.
 #
-gap> AM_Exec(fail, "sh", ["-c", "echo out; echo noise >&2"]).output;
-"out\nnoise\n"
-gap> AM_ExecQuiet(fail, "sh", ["-c", "echo out; echo noise >&2"]).output;
+gap> AM_Exec(fail, "sh", ["-c", "echo out; echo \"(expected: testing stderr)\" >&2"]).output;
+"out\n(expected: testing stderr)\n"
+gap> AM_ExecQuiet(fail, "sh", ["-c", "echo out; echo \"(expected: testing stderr)\" >&2"]).output;
 "out\n"
 
 #

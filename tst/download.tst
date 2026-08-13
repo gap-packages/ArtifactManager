@@ -9,9 +9,12 @@
 gap> START_TEST("download.tst");
 gap> SetInfoLevel(InfoArtifactManager, 0);
 gap> Read(Filename(DirectoriesPackageLibrary("ArtifactManager","tst"),"common.g"));
-gap> Read(Filename(DirectoriesPackageLibrary("ArtifactManager","tst"),"http-server.g"));
+
+# The server file is read inside the guard: it names IO globals, and GAP warns
+# about unbound globals as it parses.
 
 #@if IsPackageMarkedForLoading("IO", "") and (PathSystemProgram("curl") <> fail or PathSystemProgram("wget") <> fail)
+gap> Read(Filename(DirectoriesPackageLibrary("ArtifactManager","tst"),"http-server.g"));
 gap> store := AMT_UseTempStore();;
 gap> server := AMT_StartHTTPTestServer();;
 gap> sha := AM_HexSHA256String(AMT_HTTPBody);;
