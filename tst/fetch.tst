@@ -205,8 +205,11 @@ false
 gap> IsArtifactAvailable("amtree", "bad");
 false
 
-# A full check re-reads the installed files instead of trusting their sizes.
+# A full check re-reads the installed files instead of trusting their sizes --
+# against the tree hash for an archive, against 'sha256' for a single file.
 gap> VerifyArtifact("amtest", "tgz", "full");
+true
+gap> VerifyArtifact("amtest", "gz", "full");
 true
 
 #
