@@ -13,7 +13,7 @@ gap> Read(Filename(DirectoriesPackageLibrary("ArtifactManager","tst"),"common.g"
 # The server file is read inside the guard: it names IO globals, and GAP warns
 # about unbound globals as it parses.
 
-#@if IsPackageMarkedForLoading("IO", "") and (PathSystemProgram("curl") <> fail or PathSystemProgram("wget") <> fail)
+#@if IsPackageMarkedForLoading("IO", "") and (AM_Program("curl") <> fail or AM_Program("wget") <> fail)
 gap> Read(Filename(DirectoriesPackageLibrary("ArtifactManager","tst"),"http-server.g"));
 gap> store := AMT_UseTempStore();;
 gap> server := AMT_StartHTTPTestServer();;

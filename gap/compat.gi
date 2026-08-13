@@ -6,12 +6,13 @@
 
 BindGlobal( "AM_ProgramCache", rec() );
 
+# Not 'PathSystemProgram': that arrived in GAP 4.14 and we support 4.13.
 InstallGlobalFunction( AM_Program,
 function( name )
   local path;
   if not IsBound( AM_ProgramCache.( name ) ) then
-    path := PathSystemProgram( name );
-    if path = fail then
+    path := Filename( DirectoriesSystemPrograms(), name );
+    if path = fail or not IsExecutableFile( path ) then
       AM_ProgramCache.( name ) := fail;
     else
       AM_ProgramCache.( name ) := path;
