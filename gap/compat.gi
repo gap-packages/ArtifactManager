@@ -322,28 +322,46 @@ end );
 ##
 #F  AM_DirectorySize( <path> )
 ##
+# Blocks, not the sum of file sizes.  A tree of many small files costs a
+# 4 KB block each, so summing sizes understates it -- by 7% on primgrp's
+# data, and by 40x on 10,000 files of 100 bytes.  'du' and 'IO_stat' both
+# report blocks; only the pure-GAP fallback has to guess.
 InstallGlobalFunction( AM_DirectorySize,
 function( path )
-  local bytes, files, recurse;
+  local bytes, files, exact, recurse, res;
 
   bytes := 0;
   files := 0;
+  exact := true;
 
   recurse := function( dir )
-    local entry, sub;
+    local entry, sub, st;
     for entry in Difference( DirectoryContents( dir ), [ ".", ".." ] ) do
       sub := Concatenation( dir, "/", entry );
       if IsDirectoryPath( sub ) then
         recurse( sub );
       else
         files := files + 1;
-        if bytes <> fail then
-          entry := AM_FileSize( sub );
-          if entry = fail then
-            bytes := fail;
-          else
-            bytes := bytes + entry;
-          fi;
+      fi;
+      if bytes = fail then
+        continue;
+      fi;
+      if AM_HaveIO() then
+        st := ValueGlobal( "IO_stat" )( sub );
+        if st = fail then
+          bytes := fail;
+        else
+          bytes := bytes + 512 * st.blocks;
+        fi;
+      elif IsDirectoryPath( sub ) then
+        exact := false;
+      else
+        st := AM_FileSize( sub );
+        if st = fail then
+          bytes := fail;
+        else
+          exact := false;
+          bytes := bytes + st;
         fi;
       fi;
     od;
@@ -351,13 +369,25 @@ function( path )
 
   if not IsDirectoryPath( path ) then
     if IsExistingFile( path ) then
-      return rec( bytes := AM_FileSize( path ), files := 1 );
+      return rec( bytes := AM_FileSize( path ), files := 1, exact := true );
     fi;
     return fail;
   fi;
 
+  # 'du' knows about blocks and is much faster than walking in GAP.
+  if not AM_HaveIO() and AM_Program( "du" ) <> fail then
+    res := AM_Exec( fail, "du", [ "-sk", path ] );
+    if res.code = 0 then
+      res := Int( SplitString( res.output, " \t\n" )[1] );
+      if res <> fail then
+        recurse( path );      # still need the file count
+        return rec( bytes := 1024 * res, files := files, exact := true );
+      fi;
+    fi;
+  fi;
+
   recurse( path );
-  return rec( bytes := bytes, files := files );
+  return rec( bytes := bytes, files := files, exact := exact );
 end );
 
 

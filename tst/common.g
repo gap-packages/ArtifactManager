@@ -40,79 +40,88 @@ end );
 
 # The fixtures, declared as artifacts of the fictitious package "amtest".
 #
-# The tree hashes are what git reports for the unpacked data:
+# Tree hashes are what git reports for the unpacked data:
 #   git init --object-format=sha256 && git add -A && git commit
 #   git rev-parse 'HEAD^{tree}'
-# so they check the encoding as well as the pipeline.  "symlink" never gets
-# far enough to be unpacked, so its hash is arbitrary.
+# so they check the encoding as well as the pipeline.  "symlink" is rejected
+# before it is ever hashed, so its value is never reached.
+BindGlobal( "AMT_TreeSha", rec(
+    sample := "523f33c8b115ae982bca50b733af2df49a26a95e42033774b5ae24afa0d8ff55",
+    macos  := "5410130cbe2189818416b5b20be4dfa0f2e1dfeeae128b8b2b357909c132d706",
+    link   := "0cb27ebb557eb20cd67330eb9a20e68743edb13346a613d400158645ec0671fa" ) );
+
+# Plain "plain artifact\n", and the gzip of it.
+BindGlobal( "AMT_PlainSha",
+    "aa2132fcc52f465cdf2d0aad6239f788717db36baf84690deac7e1275303a81b" );
+BindGlobal( "AMT_GzipSha",
+    "a53e5af16337946166558c464f5b3495666de05b1516ea3d810aab19e217eacb" );
+
 BindGlobal( "AMT_DeclareFixtures", function()
   DeclareArtifacts( "amtest", [
     rec( name := "tgz",
-         tree_sha256 :=
-        "65da3422418c6e2c705b385a3fbd8127d652b1e54285e78f44597ad15a2b3555",
+         tree_sha256 := AMT_TreeSha.sample,
          description := "a tarball",
-         strip := 1,
          download := [ rec( url := AMT_Url( "sample.tar.gz" ),
-                            sha256 := AMT_Sha( "sample.tar.gz" ) ) ] ),
+                            sha256 := AMT_Sha( "sample.tar.gz" ),
+                            format := "tar.gz" ) ] ),
     rec( name := "zip",
-         tree_sha256 :=
-        "65da3422418c6e2c705b385a3fbd8127d652b1e54285e78f44597ad15a2b3555",
-         description := "a zip archive",
-         strip := 1,
+         tree_sha256 := AMT_TreeSha.sample,
+         description := "the same data as a zip",
          download := [ rec( url := AMT_Url( "sample.zip" ),
-                            sha256 := AMT_Sha( "sample.zip" ) ) ] ),
+                            sha256 := AMT_Sha( "sample.zip" ),
+                            format := "zip" ) ] ),
     rec( name := "symlink",
-         tree_sha256 :=
-        "0000000000000000000000000000000000000000000000000000000000000002",
+         tree_sha256 := AMT_TreeSha.link,
          description := "an archive containing a symbolic link",
-         strip := 1,
          download := [ rec( url := AMT_Url( "sample-symlink.tar.gz" ),
-                            sha256 := AMT_Sha( "sample-symlink.tar.gz" ) ) ] ),
+                            sha256 := AMT_Sha( "sample-symlink.tar.gz" ),
+                            format := "tar.gz" ) ] ),
     rec( name := "macos",
-         tree_sha256 :=
-        "fbda8bac4ed2e92ce60e6a6361bb7f750a4b12dc46dd3ec7a35a4a69974ea0d0",
+         tree_sha256 := AMT_TreeSha.macos,
          description := "a tarball with the usual macOS dot-file litter",
-         strip := 1,
          download := [ rec( url := AMT_Url( "sample-macos.tar.gz" ),
-                            sha256 := AMT_Sha( "sample-macos.tar.gz" ) ) ] ),
+                            sha256 := AMT_Sha( "sample-macos.tar.gz" ),
+                            format := "tar.gz" ) ] ),
     rec( name := "txt",
-         tree_sha256 :=
-        "146e6ef112f8a6c08fbad6382dd54c7bf38b511138c42d0847683b6065d0ed38",
-         description := "a single file",
+         file_sha256 := AMT_PlainSha,
+         description := "a single file, used as it comes",
          download := [ rec( url := AMT_Url( "sample.txt" ),
                             sha256 := AMT_Sha( "sample.txt" ),
-                            format := "file" ) ] ),
-    rec( name := "gz",
-         tree_sha256 :=
-        "ae9c130a8b628ba748e982d271dcfb2ae290e74733f1e2c6c4a862a70f9f7127",
-         description := "a compressed single file",
+                            format := "raw" ) ] ),
+    rec( name := "sample.txt.gz",
+         file_sha256 := AMT_GzipSha,
+         description := "kept compressed; GAP decompresses it on read",
          download := [ rec( url := AMT_Url( "sample.txt.gz" ),
-                            sha256 := AMT_Sha( "sample.txt.gz" ) ) ] ),
+                            sha256 := AMT_Sha( "sample.txt.gz" ),
+                            format := "raw" ) ] ),
+    rec( name := "gunzipped",
+         file_sha256 := AMT_PlainSha,
+         description := "the same download, decompressed on install",
+         download := [ rec( url := AMT_Url( "sample.txt.gz" ),
+                            sha256 := AMT_Sha( "sample.txt.gz" ),
+                            format := "gz" ) ] ),
     rec( name := "broken",
-         tree_sha256 :=
-        "146e6ef112f8a6c08fbad6382dd54c7bf38b511138c42d0847683b6065d0ed38",
-         description := "declared with the wrong checksum",
+         file_sha256 := AMT_PlainSha,
+         description := "declared with the wrong download checksum",
          download := [ rec( url := AMT_Url( "sample.txt" ),
                             sha256 := AMT_WrongSha,
-                            format := "file" ) ] ),
+                            format := "raw" ) ] ),
     rec( name := "mirrored",
-         tree_sha256 :=
-        "146e6ef112f8a6c08fbad6382dd54c7bf38b511138c42d0847683b6065d0ed38",
+         file_sha256 := AMT_PlainSha,
          description := "a dead source followed by a good one",
          download := [ rec( url := AMT_Url( "does-not-exist.txt" ),
                             sha256 := AMT_Sha( "sample.txt" ),
-                            format := "file" ),
+                            format := "raw" ),
                        rec( url := AMT_Url( "sample.txt" ),
                             sha256 := AMT_Sha( "sample.txt" ),
-                            format := "file" ) ] ),
+                            format := "raw" ) ] ),
     rec( name := "big",
-         tree_sha256 :=
-        "146e6ef112f8a6c08fbad6382dd54c7bf38b511138c42d0847683b6065d0ed38",
+         file_sha256 := AMT_PlainSha,
          description := "declared as enormous",
-         size := 10^12,
          download := [ rec( url := AMT_Url( "sample.txt" ),
                             sha256 := AMT_Sha( "sample.txt" ),
-                            format := "file" ) ] ),
+                            size := 10^12,
+                            format := "raw" ) ] ),
   ] );
 end );
 

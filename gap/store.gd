@@ -57,6 +57,13 @@
 #! The same store is used inside <Package>Oscar</Package> as outside it, so a
 #! gigabyte is downloaded once rather than once per environment.
 #!
+#! Inside it, an artifact lives at
+#! <F>artifacts/&lt;package&gt;/&lt;name&gt;/&lt;checksum&gt;/</F>, and a
+#! file artifact is the one file in that directory, under the artifact's own
+#! name.  The checksum is the artifact's, so two sources in different formats
+#! share one directory; the name is a path component of its own because a
+#! name may contain <C>-</C>.
+#!
 #! The store is never a package directory: data that can be re-downloaded has
 #! no business inside a package installation, which may well be read-only or
 #! shared between users.

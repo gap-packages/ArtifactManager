@@ -51,14 +51,13 @@ function( arg )
     return Concatenation( path, "/", arg[3] );
   fi;
 
-  # No relative path given: this only makes sense for a single-file artifact.
-  entries := Difference( DirectoryContents( path ), [ ".", ".." ] );
-  if Length( entries ) = 1 and
-     not IsDirectoryPath( Concatenation( path, "/", entries[1] ) ) then
-    return Concatenation( path, "/", entries[1] );
+  # No relative path given: a file artifact is stored under its own name.
+  if IsExistingFile( Concatenation( path, "/", name ) ) and
+     not IsDirectoryPath( Concatenation( path, "/", name ) ) then
+    return Concatenation( path, "/", name );
   fi;
-  ErrorNoReturn( "the artifact '", pkg, "/", name, "' is a directory with ",
-                 Length( entries ), " entries; say which file you want" );
+  ErrorNoReturn( "the artifact '", pkg, "/", name, "' is a directory; say ",
+                 "which file inside it you want" );
 end );
 
 InstallGlobalFunction( IsArtifactAvailable,
@@ -86,7 +85,7 @@ end );
 # it.  Returns a list of rec( store, package, name, sha256, path, meta ).
 BindGlobal( "AM_ScanStores",
 function()
-  local res, store, metaroot, pkgdir, pkgpath, entry, path, meta, base, key;
+  local res, store, metaroot, pkgdir, namedir, entry, path, meta, key;
 
   res := [];
   for store in AM_Stores() do
@@ -95,33 +94,36 @@ function()
       continue;
     fi;
     for pkgdir in Difference( DirectoryContents( metaroot ), [ ".", ".." ] ) do
-      pkgpath := Concatenation( metaroot, "/", pkgdir );
-      if not IsDirectoryPath( pkgpath ) then
+      if not IsDirectoryPath( Concatenation( metaroot, "/", pkgdir ) ) then
         continue;
       fi;
-      for entry in Difference( DirectoryContents( pkgpath ), [ ".", ".." ] ) do
-        if not EndsWith( entry, ".g" ) then
+      for namedir in Difference( DirectoryContents(
+              Concatenation( metaroot, "/", pkgdir ) ), [ ".", ".." ] ) do
+        path := Concatenation( metaroot, "/", pkgdir, "/", namedir );
+        if not IsDirectoryPath( path ) then
           continue;
         fi;
-        path := Concatenation( pkgpath, "/", entry );
-        meta := AM_ReadRecordFile( path );
-        if not ( IsRecord( meta ) and IsBound( meta.sha256 )
-                 and IsBound( meta.name ) ) then
-          continue;
-        fi;
-        base := entry{ [ 1 .. Length( entry ) - 2 ] };
-        key := rec( package := pkgdir, name := meta.name,
-                    sha256 := meta.sha256 );
-        Add( res, rec( store := store.path,
-                       writable := store.writable,
-                       package := pkgdir,
-                       name := meta.name,
-                       sha256 := meta.sha256,
-                       key := key,
-                       path := Concatenation( store.path, "/artifacts/",
-                                              pkgdir, "/", base ),
-                       metaPath := path,
-                       meta := meta ) );
+        for entry in Difference( DirectoryContents( path ), [ ".", ".." ] ) do
+          if not EndsWith( entry, ".g" ) then
+            continue;
+          fi;
+          meta := AM_ReadRecordFile( Concatenation( path, "/", entry ) );
+          if not ( IsRecord( meta ) and IsBound( meta.sha256 )
+                   and IsBound( meta.name ) ) then
+            continue;
+          fi;
+          key := rec( package := pkgdir, name := meta.name,
+                      sha256 := meta.sha256 );
+          Add( res, rec( store := store.path,
+                         writable := store.writable,
+                         package := pkgdir,
+                         name := meta.name,
+                         sha256 := meta.sha256,
+                         key := key,
+                         path := AM_PayloadPath( store.path, key ),
+                         metaPath := Concatenation( path, "/", entry ),
+                         meta := meta ) );
+        od;
       od;
     od;
   od;
@@ -129,9 +131,20 @@ function()
   return res;
 end );
 
+# The cheapest source to fetch, or 'fail' if none says.
+BindGlobal( "AM_SmallestSize",
+function( download )
+  local sizes;
+  sizes := Filtered( List( download, e -> e.size ), s -> s <> fail );
+  if IsEmpty( sizes ) then
+    return fail;
+  fi;
+  return Minimum( sizes );
+end );
+
 InstallGlobalFunction( ArtifactInfo,
 function( arg )
-  local decls, res, seen, decl, installed, override, entry, stored, item;
+  local decls, res, seen, decl, installed, override, stored, item;
 
   decls := CallFuncList( AllArtifactDeclarations, arg );
 
@@ -142,10 +155,10 @@ function( arg )
     item := rec( package := decl.package,
                  name := decl.name,
                  description := decl.description,
-                 version := decl.version,
-                 sha256 := decl.download[1].sha256,
+                 sha256 := decl.sha256,
+                 isDirectory := decl.isDirectory,
                  urls := List( decl.download, e -> e.url ),
-                 declaredSize := decl.size,
+                 downloadSize := AM_SmallestSize( decl.download ),
                  bytes := fail,
                  path := fail,
                  status := "absent" );
@@ -165,15 +178,11 @@ function( arg )
         fi;
         AddSet( seen, Concatenation( installed.key.package, "/",
                     installed.key.name, "/", installed.key.sha256 ) );
-      else
-        # Is there a payload without metadata, i.e. an interrupted install?
-        for entry in decl.download do
-          if IsDirectoryPath( AM_PayloadPath(
-                 ArtifactStoreDirectory( decl.package ),
-                 AM_ArtifactKey( decl, entry ) ) ) then
-            item.status := "incomplete";
-          fi;
-        od;
+      elif IsDirectoryPath( AM_PayloadPath(
+               ArtifactStoreDirectory( decl.package ),
+               AM_ArtifactKey( decl ) ) ) then
+        # A payload with no metadata is an interrupted install.
+        item.status := "incomplete";
       fi;
     fi;
 
@@ -202,7 +211,7 @@ function( arg )
                  version := "",
                  sha256 := stored.sha256,
                  urls := [],
-                 declaredSize := fail,
+                 downloadSize := fail,
                  bytes := fail,
                  path := stored.path,
                  status := "stale" );
@@ -245,8 +254,8 @@ function( arg )
     fi;
     if item.bytes <> fail then
       row := AM_HumanSize( item.bytes );
-    elif item.declaredSize <> fail then
-      row := Concatenation( "(", AM_HumanSize( item.declaredSize ), ")" );
+    elif item.downloadSize <> fail then
+      row := Concatenation( "(", AM_HumanSize( item.downloadSize ), ")" );
     else
       row := "?";
     fi;
@@ -316,18 +325,11 @@ function( arg )
   fi;
 
   if level = "full" then
-    if IsBound( installed.meta.tree_sha256 ) and
-       installed.meta.tree_sha256 <> fail then
-      return AM_TreeSHA256( installed.path ) = installed.meta.tree_sha256;
-    elif IsBound( installed.meta.singleFile )
-         and installed.meta.singleFile <> fail then
-      # A single file has no tree hash because it does not need one: the
-      # download checksum is a checksum of exactly these bytes.
-      return AM_HexSHA256File( Concatenation( installed.path, "/",
-                 installed.meta.singleFile ) ) = installed.meta.sha256;
+    if installed.meta.isDirectory = true then
+      return AM_TreeSHA256( installed.path ) = installed.meta.sha256;
     fi;
-    Info( InfoArtifactManager, 1, "no checksum of the installed files was ",
-          "recorded for ", pkg, "/", name, "; comparing sizes instead" );
+    return AM_HexSHA256File( Concatenation( installed.path, "/",
+               installed.meta.name ) ) = installed.meta.sha256;
   fi;
 
   if not ( IsBound( installed.meta.bytes ) and installed.meta.bytes <> fail

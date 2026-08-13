@@ -8,11 +8,22 @@ InstallGlobalFunction( AM_ManifestFormat, function() return 1; end );
 
 BindGlobal( "AM_ManifestFileName", "artifacts.json" );
 
+# What to do with what was downloaded.  A format is an instruction, never a
+# description: we never look at the URL to decide.
+#   "raw"                              use the file as it is
+#   "gz", "bz2", "xz"                  decompress it, keep one file
+#   "tar", "tar.gz", "tar.bz2",
+#   "tar.xz", "zip"                    unpack it into a directory
+BindGlobal( "AM_ExtractFormats",
+  [ "tar", "tar.gz", "tar.bz2", "tar.xz", "zip" ] );
+
+BindGlobal( "AM_DecompressFormats", [ "gz", "bz2", "xz" ] );
+
 BindGlobal( "AM_Formats",
-  [ "tar.gz", "tar.bz2", "tar.xz", "tar", "zip", "file", "file.gz" ] );
+  Concatenation( [ "raw" ], AM_DecompressFormats, AM_ExtractFormats ) );
 
 InstallGlobalFunction( AM_IsSingleFile,
-  format -> format in [ "file", "file.gz" ] );
+  format -> not format in AM_ExtractFormats );
 
 BindGlobal( "AM_NameChars",
   "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-" );
@@ -36,48 +47,45 @@ end );
 ##
 #F  AM_CheckDeclaration( <pkg>, <name>, <decl> )
 ##
-BindGlobal( "AM_GuessFormat",
-function( url )
-  local lower, suffix;
-  lower := LowercaseString( url );
-  for suffix in [ [ ".tar.gz", "tar.gz" ], [ ".tgz", "tar.gz" ],
-                  [ ".tar.bz2", "tar.bz2" ], [ ".tbz2", "tar.bz2" ],
-                  [ ".tar.xz", "tar.xz" ], [ ".txz", "tar.xz" ],
-                  [ ".tar", "tar" ], [ ".zip", "zip" ],
-                  [ ".gz", "file.gz" ] ] do
-    if EndsWith( lower, suffix[1] ) then
-      return suffix[2];
-    fi;
-  od;
-  return "file";
+# Reject anything we do not know rather than ignore it: a field we skip is a
+# feature the author thinks is in force.  Granularity is one artifact, so a
+# package adding an artifact we cannot read keeps the others usable.
+BindGlobal( "AM_UnknownKeys",
+function( rec_, known )
+  return Difference( RecNames( rec_ ), known );
 end );
 
-# The name a "file"/"file.gz" artifact gets inside its directory.
-BindGlobal( "AM_BaseName",
-function( url )
-  local parts;
-  parts := SplitString( url, "/" );
-  parts := Filtered( parts, s -> s <> "" );
-  if IsEmpty( parts ) then
-    return "data";
-  fi;
-  parts := SplitString( parts[ Length( parts ) ], "?#" )[1];
-  if parts = "" then
-    return "data";
-  fi;
-  return parts;
+BindGlobal( "AM_ComplainUnknown",
+function( unknown, where )
+  return Concatenation( where, "unknown field",
+             ListWithIdenticalEntries( Length( unknown ) - 1, 's' ), " ",
+             JoinStringsWithSeparator( List( unknown,
+                 k -> Concatenation( "'", k, "'" ) ), ", " ),
+             "; a newer version of ArtifactManager may be needed" );
 end );
+
+# SPDX identifiers and expressions: "GPL-2.0-or-later", "MIT OR Apache-2.0".
+BindGlobal( "AM_SPDXChars",
+  "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-+() " );
+
+BindGlobal( "AM_KnownDownloadKeys", [ "url", "sha256", "format", "size" ] );
 
 BindGlobal( "AM_CheckDownloadEntry",
 function( entry, index )
-  local res, sha, where;
+  local res, sha, where, unknown;
 
   where := Concatenation( "download entry ", String( index ), ": " );
 
   if not IsRecord( entry ) then
     return Concatenation( where, "must be an object" );
-  elif not ( IsBound( entry.url ) and IsString( entry.url )
-             and entry.url <> "" ) then
+  fi;
+  unknown := AM_UnknownKeys( entry, AM_KnownDownloadKeys );
+  if not IsEmpty( unknown ) then
+    return AM_ComplainUnknown( unknown, where );
+  fi;
+
+  if not ( IsBound( entry.url ) and IsString( entry.url )
+           and entry.url <> "" ) then
     return Concatenation( where, "'url' must be a non-empty string" );
   elif not IsBound( entry.sha256 ) then
     return Concatenation( where, "'sha256' is missing" );
@@ -88,17 +96,15 @@ function( entry, index )
     return Concatenation( where, "'sha256' is not a hexadecimal string" );
   fi;
 
-  res := rec( url := entry.url, sha256 := sha );
-
-  if IsBound( entry.format ) then
-    if not ( IsString( entry.format ) and entry.format in AM_Formats ) then
-      return Concatenation( where, "'format' must be one of ",
-                 JoinStringsWithSeparator( AM_Formats, ", " ) );
-    fi;
-    res.format := entry.format;
-  else
-    res.format := AM_GuessFormat( entry.url );
+  if not ( IsBound( entry.format ) and IsString( entry.format )
+           and entry.format in AM_Formats ) then
+    return Concatenation( where, "'format' must be one of ",
+               JoinStringsWithSeparator( AM_Formats, ", " ),
+               ".  It says what to do with the download, so it is never ",
+               "guessed from the URL." );
   fi;
+
+  res := rec( url := entry.url, sha256 := sha, format := entry.format );
 
   if IsBound( entry.size ) then
     if not ( IsInt( entry.size ) and entry.size >= 0 ) then
@@ -109,32 +115,35 @@ function( entry, index )
     res.size := fail;
   fi;
 
-  if IsBound( entry.filename ) and IsString( entry.filename ) then
-    res.filename := entry.filename;
-  else
-    res.filename := AM_BaseName( entry.url );
-  fi;
-
   return res;
 end );
 
+BindGlobal( "AM_KnownArtifactKeys",
+  [ "download", "tree_sha256", "file_sha256",
+    "description", "license", "provenance" ] );
+
 InstallGlobalFunction( AM_CheckDeclaration,
 function( pkg, name, decl )
-  local res, i, entry, downloads, opt;
+  local res, i, entry, downloads, opt, unknown, wanted;
 
   if not IsRecord( decl ) then
     return "the declaration must be an object";
-  elif not ( IsString( name ) and name <> ""
-             and ForAll( name, c -> c in AM_NameChars ) ) then
-    return Concatenation( "'", String( name ), "' is not a valid artifact ",
-               "name (letters, digits, '.', '_' and '-' only)" );
   fi;
 
-  # 'kind' is reserved for later versions.  An artifact we do not understand
-  # is skipped; the rest of the manifest stays usable.
-  if IsBound( decl.kind ) and decl.kind <> "archive" then
-    return Concatenation( "unsupported kind '", String( decl.kind ),
-               "'; a newer version of ArtifactManager is needed" );
+  # The name is also the file name of a file artifact and a component of
+  # every store path, so it has to be usable as one.
+  if not ( IsString( name ) and name <> ""
+           and ForAll( name, c -> c in AM_NameChars ) ) then
+    return Concatenation( "'", String( name ), "' is not a valid artifact ",
+               "name (letters, digits, '.', '_' and '-' only)" );
+  elif name[1] = '.' then
+    return Concatenation( "'", name, "' is not a valid artifact name: it ",
+               "must not start with '.'" );
+  fi;
+
+  unknown := AM_UnknownKeys( decl, AM_KnownArtifactKeys );
+  if not IsEmpty( unknown ) then
+    return AM_ComplainUnknown( unknown, "" );
   fi;
 
   if not ( IsBound( decl.download ) and IsList( decl.download )
@@ -153,58 +162,55 @@ function( pkg, name, decl )
 
   res := rec( package := LowercaseString( pkg ),
               name := name,
-              download := downloads,
-              strip := 0,
-              lazy := true );
+              download := downloads );
 
-  for opt in [ "description", "version", "license", "provenance" ] do
-    if IsBound( decl.( opt ) ) and IsString( decl.( opt ) ) then
+  # What kind of artifact this is says itself: a tree hash means a directory,
+  # a file hash means a file.  Exactly one, and the formats must agree.
+  if IsBound( decl.tree_sha256 ) = IsBound( decl.file_sha256 ) then
+    return Concatenation( "exactly one of 'tree_sha256' (a directory) and ",
+               "'file_sha256' (a single file) must be given.  Run  ",
+               "DescribeArtifactURL(\"", downloads[1].url,
+               "\");  to compute it." );
+  fi;
+
+  res.isDirectory := IsBound( decl.tree_sha256 );
+  if res.isDirectory then
+    res.sha256 := AM_NormalizeHex( decl.tree_sha256 );
+    wanted := "an unpacking format";
+  else
+    res.sha256 := AM_NormalizeHex( decl.file_sha256 );
+    wanted := "'raw' or a decompressing format";
+  fi;
+  if res.sha256 = fail then
+    return "the artifact checksum is not a hexadecimal string";
+  fi;
+
+  for entry in downloads do
+    if ( entry.format in AM_ExtractFormats ) <> res.isDirectory then
+      return Concatenation( "the source '", entry.url, "' has format '",
+                 entry.format, "', but this artifact needs ", wanted );
+    fi;
+  od;
+
+  for opt in [ "description", "provenance" ] do
+    if IsBound( decl.( opt ) ) then
+      if not IsString( decl.( opt ) ) then
+        return Concatenation( "'", opt, "' must be a string" );
+      fi;
       res.( opt ) := decl.( opt );
     else
       res.( opt ) := "";
     fi;
   od;
 
-  # A single file needs no tree hash: 'sha256' already covers the exact bytes
-  # that end up on disk, so a tree hash would say nothing new.
-  if IsBound( decl.tree_sha256 ) then
-    res.tree_sha256 := AM_NormalizeHex( decl.tree_sha256 );
-    if res.tree_sha256 = fail then
-      return "'tree_sha256' is not a hexadecimal string";
+  if IsBound( decl.license ) then
+    if not ( IsString( decl.license ) and decl.license <> ""
+             and ForAll( decl.license, c -> c in AM_SPDXChars ) ) then
+      return "'license' must be an SPDX identifier, e.g. 'GPL-2.0-or-later'";
     fi;
-  elif ForAll( res.download, e -> AM_IsSingleFile( e.format ) ) then
-    res.tree_sha256 := fail;
+    res.license := decl.license;
   else
-    return Concatenation( "'tree_sha256' is missing.  Run  ",
-               "DescribeArtifactURL(\"", res.download[1].url,
-               "\");  to compute it." );
-  fi;
-
-  if IsBound( decl.strip ) then
-    if not ( IsInt( decl.strip ) and decl.strip >= 0 ) then
-      return "'strip' must be a non-negative integer";
-    fi;
-    res.strip := decl.strip;
-  fi;
-
-  if IsBound( decl.lazy ) and decl.lazy in [ true, false ] then
-    res.lazy := decl.lazy;
-  fi;
-
-  if IsBound( decl.size ) then
-    if not ( IsInt( decl.size ) and decl.size >= 0 ) then
-      return "'size' must be a non-negative integer";
-    fi;
-    res.size := decl.size;
-  else
-    # fall back to the largest declared download size, if any
-    res.size := fail;
-    for entry in downloads do
-      if entry.size <> fail and
-         ( res.size = fail or entry.size > res.size ) then
-        res.size := entry.size;
-      fi;
-    od;
+    res.license := "";
   fi;
 
   return res;
@@ -251,8 +257,12 @@ function( pkg, text, source )
     return [];
   fi;
 
-  if IsBound( doc.package ) and IsString( doc.package )
-     and LowercaseString( doc.package ) <> LowercaseString( pkg ) then
+  # Mandatory, so that tooling outside GAP can read the package name here
+  # instead of parsing PackageInfo.g.
+  if not ( IsBound( doc.package ) and IsString( doc.package ) ) then
+    Info( InfoArtifactManager, 1, "ignoring ", source, ": no 'package'" );
+    return [];
+  elif LowercaseString( doc.package ) <> LowercaseString( pkg ) then
     Info( InfoArtifactManager, 1, "ignoring ", source, ": it declares ",
           "package '", doc.package, "' but belongs to '", pkg, "'" );
     return [];
@@ -264,12 +274,12 @@ function( pkg, text, source )
     return [];
   fi;
 
-  for key in RecNames( doc ) do
-    if not key in AM_KnownManifestKeys then
-      Info( InfoArtifactManager, 3, source, ": ignoring unknown key '",
-            key, "'" );
-    fi;
-  od;
+  key := AM_UnknownKeys( doc, AM_KnownManifestKeys );
+  if not IsEmpty( key ) then
+    Info( InfoArtifactManager, 1, "ignoring ", source, ": ",
+          AM_ComplainUnknown( key, "" ) );
+    return [];
+  fi;
 
   res := [];
   for name in SortedList( RecNames( doc.artifacts ) ) do
@@ -358,6 +368,10 @@ function( pkgname, list )
                      "component 'name'" );
     fi;
     name := entry.name;
+    # 'name' is how a runtime declaration says which artifact it is; in a
+    # manifest that is the key, so the schema does not know the field.
+    entry := ShallowCopy( entry );
+    Unbind( entry.name );
     decl := AM_CheckDeclaration( pkg, name, entry );
     if IsString( decl ) then
       ErrorNoReturn( "invalid declaration of artifact '", name,

@@ -50,14 +50,15 @@ gap> AM_ReadRecordFile(Concatenation(store, "/store-info.g")).storeFormat;
 # is what makes a changed declaration install somewhere new, instead of being
 # confused with the old data.
 gap> key := rec(package := "p", name := "n", sha256 := AMT_WrongSha);;
-gap> AM_ShortHash(AMT_WrongSha);
-"0000000000000000"
-gap> AM_PayloadPath("/s", key);
-"/s/artifacts/p/n-0000000000000000"
-gap> AM_MetaPath("/s", key);
-"/s/meta/p/n-0000000000000000.g"
-gap> AM_UsedPath("/s", key);
-"/s/used/p/n-0000000000000000.g"
+
+# The name is its own path component, because a name may contain '-' and
+# "<name>-<hash>" could then not be taken apart again.
+gap> AM_PayloadPath("/s", key) = Concatenation("/s/artifacts/p/n/", AMT_WrongSha);
+true
+gap> AM_MetaPath("/s", key) = Concatenation("/s/meta/p/n/", AMT_WrongSha, ".g");
+true
+gap> AM_UsedPath("/s", key) = Concatenation("/s/used/p/n/", AMT_WrongSha, ".g");
+true
 
 # A per-package override sends one package's data somewhere else.
 gap> SetUserPreference("ArtifactManager", "ArtifactStoreOverrides",

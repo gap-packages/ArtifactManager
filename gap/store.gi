@@ -209,10 +209,14 @@ function( sha )
   return sha{ [ 1 .. 16 ] };
 end );
 
+# <store>/<sub>/<pkg>/<name>/<sha256><suffix>.  The name is its own path
+# component because a name may contain '-', so "<name>-<hash>" could not be
+# taken apart again; and the hash is not truncated because there is no longer
+# any reason to.
 BindGlobal( "AM_KeyPath",
 function( store, sub, key, suffix )
   return Concatenation( store, "/", sub, "/", LowercaseString( key.package ),
-             "/", key.name, "-", AM_ShortHash( key.sha256 ), suffix );
+             "/", key.name, "/", key.sha256, suffix );
 end );
 
 InstallGlobalFunction( AM_PayloadPath,

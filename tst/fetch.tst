@@ -22,12 +22,13 @@ true
 gap> IsArtifactAvailable("amtest", "tgz");
 true
 
-# 'strip' removed the single leading directory of the archive.
+# The tree is exactly what the archive holds -- nothing is stripped, so the
+# checksum is one a publisher can reproduce with 'tar xf' and git.
 gap> SortedList(Difference(DirectoryContents(Filename(d, "")), [".", ".."]));
-[ "hello.txt", "sub" ]
-gap> StringFile(Filename(d, "hello.txt"));
+[ "sample" ]
+gap> StringFile(Filename(d, "sample/hello.txt"));
 "hello artifact\n"
-gap> StringFile(Filename(d, "sub/inner.txt"));
+gap> StringFile(Filename(d, "sample/sub/inner.txt"));
 "inner file\n"
 
 # The second call must not download anything again.
@@ -36,15 +37,21 @@ true
 
 # The installed data is read-only, but still readable -- an artifact whose
 # directories lost their execute bit would be useless.
-gap> IsReadableFile(Filename(d, "hello.txt"));
+gap> IsReadableFile(Filename(d, "sample/hello.txt"));
 true
 
 #
 # A zip archive.
 #
 gap> d := ArtifactDirectory("amtest", "zip");;
-gap> StringFile(Filename(d, "hello.txt"));
+gap> StringFile(Filename(d, "sample/hello.txt"));
 "hello artifact\n"
+
+# The zip and the tarball unpack to the same tree, so they are the same
+# artifact as far as the store is concerned.
+gap> ArtifactDeclaration("amtest", "zip").sha256
+>      = ArtifactDeclaration("amtest", "tgz").sha256;
+true
 
 #
 # Archives built on a Mac carry .DS_Store and AppleDouble files beside the
@@ -53,12 +60,10 @@ gap> StringFile(Filename(d, "hello.txt"));
 # They are kept rather than deleted: we do not throw data away silently.
 #
 gap> d := ArtifactDirectory("amtest", "macos");;
-gap> StringFile(Filename(d, "hello.txt"));
+gap> StringFile(Filename(d, "sample/hello.txt"));
 "hello artifact\n"
-gap> StringFile(Filename(d, "sub/inner.txt"));
-"inner file\n"
 gap> SortedList(Difference(DirectoryContents(Filename(d, "")), [".", ".."]));
-[ ".DS_Store", ".hidden", "hello.txt", "sub" ]
+[ ".DS_Store", ".hidden", "sample" ]
 
 #
 # An archive carrying a symbolic link is refused: a link is neither a regular
@@ -77,7 +82,7 @@ gap> IsArtifactAvailable("amtest", "mirrored");
 false
 gap> FetchArtifact("amtest", "mirrored", d);
 true
-gap> StringFile(Concatenation(d, "/sample.txt"));
+gap> StringFile(Concatenation(d, "/mirrored"));
 "plain artifact\n"
 
 # and the store still knows nothing about it
@@ -98,17 +103,27 @@ Error, usage: FetchArtifact( <pkg>, <name>[, <destination>] )
 #
 gap> StringFile(ArtifactFile("amtest", "txt"));
 "plain artifact\n"
-gap> p := ArtifactFile("amtest", "gz");;
+
+# The artifact name is the file name, so an author who wants GAP's
+# transparent decompression names the artifact accordingly.
+gap> p := ArtifactFile("amtest", "sample.txt.gz");;
 gap> EndsWith(p, ".gz");
 true
 gap> StringFile(p);
 "plain artifact\n"
 
-# Without a relative path this only works for a one-file artifact.
+# The same download, decompressed on install instead, is a different artifact.
+gap> p := ArtifactFile("amtest", "gunzipped");;
+gap> EndsWith(p, ".gz");
+false
+gap> StringFile(p);
+"plain artifact\n"
+
+# Without a relative path this only works for a file artifact.
 gap> ArtifactFile("amtest", "tgz");
-Error, the artifact 'amtest/tgz' is a directory with 
-2 entries; say which file you want
-gap> StringFile(ArtifactFile("amtest", "tgz", "sub/inner.txt"));
+Error, the artifact 'amtest/tgz' is a directory; say which file inside it you \
+want
+gap> StringFile(ArtifactFile("amtest", "tgz", "sample/sub/inner.txt"));
 "inner file\n"
 
 #
@@ -138,11 +153,11 @@ gap> StringFile(ArtifactFile("amtest", "mirrored"));
 #
 gap> ArtifactContents("amtest", "txt");
 "plain artifact\n"
-gap> ArtifactContents("amtest", "gz");
+gap> ArtifactContents("amtest", "sample.txt.gz");
 "plain artifact\n"
 gap> ArtifactContents("amtest", "tgz");
-Error, the artifact 'amtest/tgz' is an archive; use ArtifactDirectory instead \
-of ArtifactContents
+Error, the artifact 'amtest/tgz' is a directory; use ArtifactDirectory instead\
+ of ArtifactContents
 
 #
 # Guard rails.
@@ -154,9 +169,10 @@ ackage installed, and does it have an artifacts.json?
 # An artifact declared as huge is not fetched behind the user's back.
 gap> SetUserPreference("ArtifactManager", "MaxAutoDownloadSize", 1000);
 gap> ArtifactDirectory("amtest", "big");
-Error, the artifact amtest/big is 1.0 TB, which is more than the 1.0 kB that m\
-ay be downloaded automatically.  Run  FetchArtifact("amtest", "big");  to down\
-load it, or raise the user preference ArtifactManager/MaxAutoDownloadSize.
+Error, every source for amtest/big is at least 1.0 TB, which is more than the \
+1.0 kB that may be downloaded automatically.  Run  FetchArtifact("amtest", "bi\
+g");  to download it, or raise the user preference ArtifactManager/MaxAutoDown\
+loadSize.
 
 # Asking for it by name is an explicit decision, and goes ahead.
 gap> FetchArtifact("amtest", "big");
@@ -184,7 +200,8 @@ gap> SetUserPreference("ArtifactManager", "AllowDownloads", true);
 #
 gap> info := ArtifactInfo("amtest");;
 gap> SortedList(List(info, r -> r.name));
-[ "big", "broken", "gz", "macos", "mirrored", "symlink", "tgz", "txt", "zip" ]
+[ "big", "broken", "gunzipped", "macos", "mirrored", "sample.txt.gz", 
+  "symlink", "tgz", "txt", "zip" ]
 gap> First(info, r -> r.name = "tgz").status;
 "installed"
 gap> First(info, r -> r.name = "broken").status;
@@ -197,8 +214,8 @@ true
 # the data is dropped and nothing is installed.
 #
 gap> DeclareArtifacts("amtree", [
->      rec(name := "bad", strip := 1, tree_sha256 := AMT_WrongSha,
->          download := [rec(url := AMT_Url("sample.tar.gz"),
+>      rec(name := "bad", tree_sha256 := AMT_WrongSha,
+>          download := [rec(url := AMT_Url("sample.tar.gz"), format := "tar.gz",
 >                           sha256 := AMT_Sha("sample.tar.gz"))])]);
 gap> FetchArtifact("amtree", "bad");
 false
@@ -209,7 +226,7 @@ false
 # against the tree hash for an archive, against 'sha256' for a single file.
 gap> VerifyArtifact("amtest", "tgz", "full");
 true
-gap> VerifyArtifact("amtest", "gz", "full");
+gap> VerifyArtifact("amtest", "sample.txt.gz", "full");
 true
 
 #
@@ -223,7 +240,7 @@ gap> RemoveArtifact("amtest", "tgz");
 false
 gap> RemoveAllArtifacts("amtest") >= 1;
 true
-gap> ForAny(["zip", "txt", "gz"], n -> IsArtifactAvailable("amtest", n));
+gap> ForAny(["zip", "txt", "gunzipped"], n -> IsArtifactAvailable("amtest", n));
 false
 
 #

@@ -16,11 +16,14 @@ BindGlobal( "AM_LargeDownload", 64 * 1024 * 1024 );
 # checksum.  TODO(U6).
 BindGlobal( "AM_BlobName", "blob" );
 
+# An artifact is identified by what it *is*, not by which mirror produced it,
+# so the key is the declared tree or file checksum.  Mirrors serving
+# byte-different archives of the same data therefore share one directory.
 BindGlobal( "AM_ArtifactKey",
-function( decl, entry )
+function( decl )
   return rec( package := decl.package,
               name := decl.name,
-              sha256 := entry.sha256 );
+              sha256 := decl.sha256 );
 end );
 
 
@@ -30,31 +33,29 @@ end );
 ##
 InstallGlobalFunction( AM_Installed,
 function( decl )
-  local store, entry, key, payload, meta, data;
+  local store, key, payload, meta, data;
 
+  key := AM_ArtifactKey( decl );
   for store in AM_Stores( decl.package ) do
-    for entry in decl.download do
-      key := AM_ArtifactKey( decl, entry );
-      payload := AM_PayloadPath( store.path, key );
-      meta := AM_MetaPath( store.path, key );
-      # The metadata file is written last, so its presence is what makes an
-      # artifact count as installed.  A payload without metadata is the
-      # remains of an interrupted install and is ignored.
-      if IsDirectoryPath( payload ) and IsExistingFile( meta ) then
-        data := AM_ReadRecordFile( meta );
-        if IsRecord( data ) then
-          return rec( store := store.path, key := key, path := payload,
-                      meta := data, entry := entry, writable := store.writable );
-        fi;
+    payload := AM_PayloadPath( store.path, key );
+    meta := AM_MetaPath( store.path, key );
+    # The metadata file is written last, so its presence is what makes an
+    # artifact count as installed.  A payload without metadata is the
+    # remains of an interrupted install and is ignored.
+    if IsDirectoryPath( payload ) and IsExistingFile( meta ) then
+      data := AM_ReadRecordFile( meta );
+      if IsRecord( data ) then
+        return rec( store := store.path, key := key, path := payload,
+                    meta := data, writable := store.writable );
       fi;
-    od;
+    fi;
   od;
 
   return fail;
 end );
 
 
-#############################################################################
+#####
 ##
 #F  AM_Download( <url>, <target>, <opt> )
 ##
@@ -200,32 +201,46 @@ function( members )
   return true;
 end );
 
+# Decompressors, by format.  Each writes to stdout, so the shell does the
+# redirection: a gigabyte must not pass through a GAP string.
+BindGlobal( "AM_Decompressors",
+  rec( gz := [ "gzip", "gunzip" ], bz2 := [ "bzip2", "bunzip2" ],
+       xz := [ "xz", "unxz" ] ) );
+
+# Turn <blob> into <payload>, a directory, as <format> says.  A file artifact
+# gets a directory holding one file named <name>, so that both kinds have the
+# same shape in the store and the name keeps whatever suffix the author gave
+# it -- which is what makes GAP's transparent '.gz' reading work.
+# Returns 'true', or a message.
 BindGlobal( "AM_Extract",
-function( blob, payload, format, filename )
-  local members, check, res, target;
+function( blob, payload, format, name )
+  local members, check, res, target, prog;
 
   if CreateDirectoryRecursively( payload ) = fail then
     return "could not create the unpacking directory";
   fi;
+  target := Concatenation( payload, "/", name );
 
-  if format = "file" then
-    target := Concatenation( payload, "/", filename );
+  if format = "raw" then
     if AM_Rename( blob, target ) then
       return true;
     fi;
     return "could not move the downloaded file into place";
 
-  elif format = "file.gz" then
-    # Keep it compressed: StringFile and InputTextFile decompress '.gz'
-    # transparently, so this costs nothing and saves space.
-    target := Concatenation( payload, "/", filename );
-    if not EndsWith( target, ".gz" ) then
-      target := Concatenation( target, ".gz" );
+  elif format in AM_DecompressFormats then
+    prog := First( AM_Decompressors.( format ),
+                   x -> AM_Program( x ) <> fail );
+    if prog = fail then
+      return Concatenation( "cannot decompress '", format, "'" );
     fi;
-    if AM_Rename( blob, target ) then
-      return true;
+    res := AM_Exec( fail, "sh",
+               [ "-c", Concatenation( prog, " -dc \"$0\" > \"$1\"" ),
+                 blob, target ] );
+    if res.code <> 0 then
+      return Concatenation( "decompressing failed: ", res.output );
     fi;
-    return "could not move the downloaded file into place";
+    RemoveFile( blob );
+    return true;
   fi;
 
   # Look inside before unpacking.  We always unpack into a private directory,
@@ -262,28 +277,22 @@ function( blob, payload, format, filename )
   return true;
 end );
 
-# What unpacking <format> needs and cannot find, or 'fail' if all is well.
-# Checked before downloading: finding out that 'tar' is missing after pulling
-# a gigabyte across the network is not an acceptable way to learn it.
-# The name a single-file artifact has inside its directory, or 'fail' for an
-# archive.  AM_Extract decides this; keep the two in step.
-BindGlobal( "AM_InstalledFileName",
-function( entry )
-  local name;
-  if not AM_IsSingleFile( entry.format ) then
-    return fail;
-  fi;
-  name := entry.filename;
-  if entry.format = "file.gz" and not EndsWith( name, ".gz" ) then
-    name := Concatenation( name, ".gz" );
-  fi;
-  return name;
-end );
-
+# What <format> needs and cannot find, or 'fail' if all is well.  Checked
+# before downloading: finding out that 'tar' is missing after pulling a
+# gigabyte across the network is not an acceptable way to learn it.
 BindGlobal( "AM_MissingTool",
 function( format )
-  if format in [ "file", "file.gz" ] then
+  local progs;
+
+  if format = "raw" then
     return fail;
+  elif format in AM_DecompressFormats then
+    progs := AM_Decompressors.( format );
+    if ForAny( progs, x -> AM_Program( x ) <> fail ) then
+      return fail;
+    fi;
+    return JoinStringsWithSeparator(
+               List( progs, x -> Concatenation( "'", x, "'" ) ), " or " );
   elif format = "zip" and AM_Program( "unzip" ) <> fail then
     return fail;
   elif AM_Program( "tar" ) <> fail then
@@ -293,46 +302,6 @@ function( format )
   fi;
   return "'tar'";
 end );
-
-BindGlobal( "AM_StripLevels",
-function( payload, levels )
-  local i, entries, dirs, junk, sub, entry;
-
-  for i in [ 1 .. levels ] do
-    entries := Difference( DirectoryContents( payload ), [ ".", ".." ] );
-
-    # macOS archives carry ._name and .DS_Store beside the real top-level
-    # directory; those must not defeat the strip.  Kept, not deleted.
-    dirs := Filtered( entries,
-                e -> not StartsWith( e, "." ) and
-                     IsDirectoryPath( Concatenation( payload, "/", e ) ) );
-    junk := Filtered( entries, e -> StartsWith( e, "." ) );
-
-    if Length( dirs ) <> 1 or
-       Length( entries ) <> Length( dirs ) + Length( junk ) then
-      Info( InfoArtifactManager, 1, "not stripping a leading directory: the ",
-            "archive unpacked to ", Length( entries ), " entries, and they ",
-            "are not one directory plus dot-files" );
-      return;
-    fi;
-    if not IsEmpty( junk ) then
-      Info( InfoArtifactManager, 3, "ignoring ", Length( junk ),
-            " dot-entries while stripping the leading directory" );
-    fi;
-
-    sub := Concatenation( payload, "/", dirs[1] );
-    for entry in Difference( DirectoryContents( sub ), [ ".", ".." ] ) do
-      if not AM_Rename( Concatenation( sub, "/", entry ),
-                        Concatenation( payload, "/", entry ) ) then
-        Info( InfoArtifactManager, 1, "could not strip the leading ",
-              "directory of the archive" );
-        return;
-      fi;
-    od;
-    RemoveDir( sub );
-  od;
-end );
-
 
 BindGlobal( "AM_DownloadTimeout",
 function()
@@ -361,9 +330,8 @@ function( decl, staging )
 
   blob := Concatenation( staging, "/", AM_BlobName );
   errors := [];
+  key := AM_ArtifactKey( decl );
   for entry in decl.download do
-    key := AM_ArtifactKey( decl, entry );
-
     missing := AM_MissingTool( entry.format );
     if missing <> fail then
       Add( errors, Concatenation( entry.url, ": unpacking a '", entry.format,
@@ -405,13 +373,10 @@ function( decl, staging )
     # (6) unpack into the staging area.
     Info( InfoArtifactManager, 2, "unpacking (", entry.format, ")" );
     target := Concatenation( staging, "/payload" );
-    extracted := AM_Extract( blob, target, entry.format, entry.filename );
+    extracted := AM_Extract( blob, target, entry.format, decl.name );
     if IsString( extracted ) then
       Add( errors, Concatenation( entry.url, ": ", extracted ) );
       continue;
-    fi;
-    if decl.strip > 0 then
-      AM_StripLevels( target, decl.strip );
     fi;
 
     irregular := AM_IrregularFiles( target );
@@ -426,19 +391,24 @@ function( decl, staging )
       continue;
     fi;
 
-    if decl.tree_sha256 <> fail then
-      Info( InfoArtifactManager, 2, "verifying tree hash" );
+    # (7) the artifact's own checksum -- of the tree, or of the one file --
+    # which is what identifies it and where it goes in the store.
+    Info( InfoArtifactManager, 2, "verifying the artifact checksum" );
+    if decl.isDirectory then
       digest := AM_TreeSHA256( target );
-      if digest = fail then
-        Add( errors, Concatenation( entry.url,
-                 ": could not compute the tree hash of the unpacked data" ) );
-        continue;
-      elif digest <> decl.tree_sha256 then
-        Info( InfoArtifactManager, 1, "tree hash mismatch for ", entry.url,
-              "\n#I  expected ", decl.tree_sha256, "\n#I  got      ", digest );
-        Add( errors, Concatenation( entry.url, ": tree hash mismatch" ) );
-        continue;
-      fi;
+    else
+      digest := AM_HexSHA256File( Concatenation( target, "/", decl.name ) );
+    fi;
+    if digest = fail then
+      Add( errors, Concatenation( entry.url,
+               ": could not compute the checksum of the unpacked data" ) );
+      continue;
+    elif digest <> decl.sha256 then
+      Info( InfoArtifactManager, 1, "checksum mismatch for ", entry.url,
+            "\n#I  expected ", decl.sha256, "\n#I  got      ", digest );
+      Add( errors, Concatenation( entry.url,
+               ": the unpacked data has the wrong checksum" ) );
+      continue;
     fi;
 
     return rec( success := true, entry := entry, key := key,
@@ -517,7 +487,8 @@ end );
 
 InstallGlobalFunction( AM_Install,
 function( decl, explicit )
-  local limit, store, staging, target, res, usage, meta, done, cleanup;
+  local limit, affordable, store, staging, target, res, usage, meta,
+        done, cleanup;
 
   # (1) already there?
   res := AM_Installed( decl );
@@ -534,16 +505,25 @@ function( decl, explicit )
         "ArtifactManager/AllowDownloads to 'true' to allow them." ) );
   fi;
 
+  # Sizes are per source, so a small mirror is usable even when a large one
+  # is not: the same data as a 300 MB .tar.xz and a 1 GB .tar should be
+  # fetchable on a tether.
   limit := UserPreference( "ArtifactManager", "MaxAutoDownloadSize" );
-  if not explicit and IsInt( limit ) and limit > 0 and decl.size <> fail
-     and decl.size > limit then
-    return rec( success := false, error := Concatenation(
-        "the artifact ", decl.package, "/", decl.name, " is ",
-        AM_HumanSize( decl.size ), ", which is more than the ",
-        AM_HumanSize( limit ), " that may be downloaded automatically.  ",
-        "Run  FetchArtifact(\"", decl.package, "\", \"", decl.name,
-        "\");  to download it, or raise the user preference ",
-        "ArtifactManager/MaxAutoDownloadSize." ) );
+  if not explicit and IsInt( limit ) and limit > 0 then
+    affordable := Filtered( decl.download,
+                            e -> e.size = fail or e.size <= limit );
+    if IsEmpty( affordable ) then
+      return rec( success := false, error := Concatenation(
+          "every source for ", decl.package, "/", decl.name, " is at least ",
+          AM_HumanSize( Minimum( List( decl.download, e -> e.size ) ) ),
+          ", which is more than the ", AM_HumanSize( limit ),
+          " that may be downloaded automatically.  Run  FetchArtifact(\"",
+          decl.package, "\", \"", decl.name, "\");  to download it, or ",
+          "raise the user preference ",
+          "ArtifactManager/MaxAutoDownloadSize." ) );
+    fi;
+    decl := ShallowCopy( decl );
+    decl.download := affordable;
   fi;
 
   # (3) somewhere to work.  The staging directory lives inside the store, so
@@ -605,16 +585,13 @@ function( decl, explicit )
   meta := rec( metaFormat := AM_MetaFormat,
                package := decl.package,
                name := decl.name,
-               version := decl.version,
                description := decl.description,
                license := decl.license,
                provenance := decl.provenance,
-               sha256 := done.key.sha256,
-               tree_sha256 := decl.tree_sha256,
-               singleFile := AM_InstalledFileName( done.entry ),
+               sha256 := decl.sha256,
+               isDirectory := decl.isDirectory,
                format := done.entry.format,
                url := done.entry.url,
-               strip := decl.strip,
                installedAt := AM_TimeString(),
                bytes := usage.bytes,
                files := usage.files );
@@ -705,8 +682,8 @@ function( pkg, name )
 
   decl := AM_DeclarationOrError( pkg, name );
 
-  if not ForAll( decl.download, e -> e.format in [ "file", "file.gz" ] ) then
-    ErrorNoReturn( "the artifact '", pkg, "/", name, "' is an archive; use ",
+  if decl.isDirectory then
+    ErrorNoReturn( "the artifact '", pkg, "/", name, "' is a directory; use ",
                    "ArtifactDirectory instead of ArtifactContents" );
   fi;
 
@@ -714,11 +691,7 @@ function( pkg, name )
   installed := AM_Installed( decl );
   if installed <> fail then
     AM_TouchUsed( installed.store, installed.key );
-    path := Concatenation( installed.path, "/", installed.entry.filename );
-    if installed.entry.format = "file.gz" and not EndsWith( path, ".gz" ) then
-      path := Concatenation( path, ".gz" );
-    fi;
-    return StringFile( path );
+    return StringFile( Concatenation( installed.path, "/", decl.name ) );
   fi;
 
   if AM_OfflineMode() then

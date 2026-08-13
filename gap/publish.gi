@@ -48,9 +48,29 @@ end );
 
 # Everything DescribeArtifactURL needs to say, without saying it: the caller
 # below turns this into the stanza a package author pastes.
+# What format to use when the caller does not say: extract an archive,
+# decompress a lone compressed file, otherwise take the bytes as they are.
+BindGlobal( "AM_FormatFromContents",
+function( sniffed, url )
+  if sniffed = "gzip" then
+    # gzip alone does not say whether a tar is inside; the URL, if it looks
+    # like one, is the only hint there is.  This is a suggestion for a human
+    # to confirm, not a run-time decision.
+    if EndsWith( LowercaseString( url ), ".tar.gz" ) or
+       EndsWith( LowercaseString( url ), ".tgz" ) then
+      return "tar.gz";
+    fi;
+    return "gz";
+  elif sniffed = fail then
+    return "raw";
+  fi;
+  return sniffed;
+end );
+
+# Everything DescribeArtifactURL needs to say, without saying it.
 BindGlobal( "AM_DescribeURL",
-function( url, strip )
-  local tmp, blob, res, digest, size, format, sniffed, payload, tree;
+function( url, format, name )
+  local tmp, blob, res, digest, size, sniffed, payload, inner, ok;
 
   tmp := DirectoryTemporary();
   if tmp = fail then
@@ -69,77 +89,78 @@ function( url, strip )
 
   digest := AM_HexSHA256File( blob );
   size := AM_FileSize( blob );
-  format := AM_GuessFormat( url );
-  sniffed := AM_SniffFormat( blob );
-
   if digest = fail then
     Info( InfoArtifactManager, 1, "could not compute the checksum" );
     return fail;
   fi;
 
-  # Trust the bytes over the URL, except that gzip alone does not say whether
-  # what is inside is a tar; there the URL, if it looks like one, knows better.
-  if sniffed = "gzip" then
-    if not format in [ "tar.gz", "file.gz" ] then
-      format := "file.gz";
-    fi;
-  elif sniffed <> fail and sniffed <> format then
-    Info( InfoArtifactManager, 2, "the URL suggests format '", format,
-          "', but the contents are '", sniffed, "'; using the latter" );
-    format := sniffed;
+  sniffed := AM_SniffFormat( blob );
+  if format = fail then
+    format := AM_FormatFromContents( sniffed, url );
+    Info( InfoArtifactManager, 2, "treating this as '", format, "'" );
   fi;
 
-  # The tree hash is mandatory in a manifest and cannot be produced by any
-  # other tool, so unpack the archive here rather than leave the author stuck.
   payload := Filename( tmp, "payload" );
-  Info( InfoArtifactManager, 1, "unpacking to compute the tree hash" );
-  tree := AM_Extract( blob, payload, format, AM_BaseName( url ) );
-  if IsString( tree ) then
-    Info( InfoArtifactManager, 1, "could not unpack: ", tree );
+  Info( InfoArtifactManager, 1, "unpacking to compute the artifact checksum" );
+  ok := AM_Extract( blob, payload, format, name );
+  if IsString( ok ) then
+    Info( InfoArtifactManager, 1, "could not unpack: ", ok );
     return fail;
   fi;
-  if strip > 0 then
-    AM_StripLevels( payload, strip );
+
+  if format in AM_ExtractFormats then
+    inner := AM_TreeSHA256( payload );
+  else
+    inner := AM_HexSHA256File( Concatenation( payload, "/", name ) );
   fi;
-  tree := AM_TreeSHA256( payload );
   RemoveDirectoryRecursively( payload );
   RemoveFile( blob );
-  if tree = fail then
-    Info( InfoArtifactManager, 1, "could not compute the tree hash" );
+  if inner = fail then
+    Info( InfoArtifactManager, 1, "could not compute the artifact checksum" );
     return fail;
   fi;
 
   return rec( url := url, sha256 := digest, size := size, format := format,
-              tree_sha256 := tree, strip := strip );
+              artifactSha256 := inner,
+              isDirectory := format in AM_ExtractFormats );
 end );
 
 InstallGlobalFunction( DescribeArtifactURL,
-function( url, strip... )
-  local res;
+function( url, opt... )
+  local name, format, res;
 
   if not IsString( url ) then
     ErrorNoReturn( "<url> must be a string" );
-  elif Length( strip ) > 1
-       or ( not IsEmpty( strip )
-            and not ( IsInt( strip[1] ) and strip[1] >= 0 ) ) then
-    ErrorNoReturn( "usage: DescribeArtifactURL( <url>[, <strip>] )" );
-  fi;
-  if IsEmpty( strip ) then
-    strip := 1;
-  else
-    strip := strip[1];
+  elif Length( opt ) > 2 or ForAny( opt, o -> not IsString( o ) ) then
+    ErrorNoReturn( "usage: DescribeArtifactURL( <url>[, <name>[, ",
+                   "<format>]] )" );
   fi;
 
-  res := AM_DescribeURL( url, strip );
+  if IsEmpty( opt ) then
+    name := "<name>";
+  else
+    name := opt[1];
+  fi;
+  if Length( opt ) < 2 then
+    format := fail;
+  elif not opt[2] in AM_Formats then
+    ErrorNoReturn( "<format> must be one of ",
+                   JoinStringsWithSeparator( AM_Formats, ", " ) );
+  else
+    format := opt[2];
+  fi;
+
+  res := AM_DescribeURL( url, format, name );
   if res = fail then
     return fail;
   fi;
 
-  Print( "\"<name>\": {\n" );
+  Print( "\"", name, "\": {\n" );
   Print( "  \"description\": \"...\",\n" );
-  Print( "  \"tree_sha256\": \"", res.tree_sha256, "\",\n" );
-  if res.strip <> 0 then
-    Print( "  \"strip\": ", res.strip, ",\n" );
+  if res.isDirectory then
+    Print( "  \"tree_sha256\": \"", res.artifactSha256, "\",\n" );
+  else
+    Print( "  \"file_sha256\": \"", res.artifactSha256, "\",\n" );
   fi;
   Print( "  \"download\": [\n" );
   Print( "    { \"url\": \"", res.url, "\",\n" );
@@ -154,4 +175,50 @@ function( url, strip... )
   fi;
 
   return res;
+end );
+
+InstallGlobalFunction( ValidateArtifacts,
+function( pkg )
+  local decls, decl, entry, res, bad, problems;
+
+  decls := AllArtifactDeclarations( pkg );
+  if IsEmpty( decls ) then
+    Print( "no artifacts declared by ", pkg, "\n" );
+    return true;
+  fi;
+
+  problems := 0;
+  for decl in decls do
+    for entry in decl.download do
+      Print( decl.name, "  ", entry.url, "\n" );
+      res := AM_DescribeURL( entry.url, entry.format, decl.name );
+      bad := [];
+      if res = fail then
+        Add( bad, "could not be fetched and unpacked" );
+      else
+        if res.sha256 <> entry.sha256 then
+          Add( bad, Concatenation( "'sha256' says ", entry.sha256,
+                        ", the file is ", res.sha256 ) );
+        fi;
+        if res.artifactSha256 <> decl.sha256 then
+          Add( bad, Concatenation( "the artifact checksum says ", decl.sha256,
+                        ", the data is ", res.artifactSha256 ) );
+        fi;
+        if res.size <> fail and entry.size <> fail
+           and res.size <> entry.size then
+          Add( bad, Concatenation( "'size' says ", String( entry.size ),
+                        ", the file is ", String( res.size ) ) );
+        fi;
+      fi;
+      if IsEmpty( bad ) then
+        Print( "  ok\n" );
+      else
+        problems := problems + Length( bad );
+        Print( "  ", JoinStringsWithSeparator( bad, "\n  " ), "\n" );
+      fi;
+    od;
+  od;
+
+  Print( "\n", problems, " problem(s)\n" );
+  return problems = 0;
 end );

@@ -60,28 +60,34 @@ Add `artifacts.json` to your package's root directory:
   "artifacts": {
     "dat32": {
       "description": "Transitive groups of degree 32",
-      "version": "1.0",
-      "size": 314572800,
       "license": "GPL-2.0-or-later",
       "provenance": "https://doi.org/10.5281/zenodo.5935751",
       "tree_sha256": "bbbb...",
-      "strip": 1,
       "download": [
-        { "url": "https://example.org/trans32.tar.gz", "sha256": "aaaa..." },
-        { "url": "https://mirror.example.org/trans32.tar.gz", "sha256": "aaaa..." }
+        { "url": "https://example.org/trans32.tar.gz",
+          "sha256": "aaaa...", "size": 314572800, "format": "tar.gz" },
+        { "url": "https://mirror.example.org/trans32.zip",
+          "sha256": "cccc...", "format": "zip" }
       ]
     }
   }
 }
 ```
 
-`DescribeArtifactURL("https://example.org/trans32.tar.gz")` downloads and
-unpacks the file once and prints the stanza above with everything filled in.
-Use it rather than writing the file by hand: `tree_sha256`, a checksum of the
-*unpacked* data, comes from nowhere else. It is what makes two mirrors serving
-byte-different archives of the same data interchangeable, and what lets
-`VerifyArtifact` re-read installed files instead of trusting their sizes. The
-value is git's, with SHA256 in place of SHA1.
+`DescribeArtifactURL("https://example.org/trans32.tar.gz", "dat32")` downloads
+and unpacks the file once and prints the stanza above with everything filled
+in. Use it rather than writing the file by hand: `tree_sha256` comes from
+nowhere else.
+
+That checksum is of the data as installed, not of what was downloaded, which
+is why the two sources above can be a tarball and a zip and still be one
+artifact. For a single file, declare `file_sha256` instead — that is all that
+distinguishes the two kinds. Tree checksums are git's, with SHA256 in place of
+SHA1, so you can check one against `git init --object-format=sha256`.
+
+`ValidateArtifacts("transgrp")` fetches every source and checks it against the
+manifest; it belongs in CI, since a silently re-uploaded mirror otherwise only
+breaks for whoever downloads it.
 
 Then, in your package code, replace whatever you did before with:
 

@@ -23,17 +23,14 @@
 #!   "artifacts": {
 #!     "dat32": {
 #!       "description": "Transitive groups of degree 32",
-#!       "version": "1.0",
-#!       "size": 314572800,
-#!       "tree_sha256": "bbbb...",
 #!       "license": "GPL-2.0-or-later",
 #!       "provenance": "https://doi.org/10.5281/zenodo.5935751",
-#!       "strip": 1,
+#!       "tree_sha256": "bbbb...",
 #!       "download": [
 #!         { "url": "https://example.org/trans32.tar.gz",
-#!           "sha256": "aaaa...", "format": "tar.gz" },
-#!         { "url": "https://mirror.example.org/trans32.tar.gz",
-#!           "sha256": "aaaa..." }
+#!           "sha256": "aaaa...", "size": 314572800, "format": "tar.gz" },
+#!         { "url": "https://mirror.example.org/trans32.zip",
+#!           "sha256": "cccc...", "format": "zip" }
 #!       ]
 #!     }
 #!   }
@@ -45,16 +42,19 @@
 #! <List>
 #! <Mark><C>gapArtifactManifestVersion</C></Mark>
 #! <Item>Mandatory, an integer.  The version of this file format; currently
-#!   <C>1</C>.  Its presence is also what marks the file as ours.  A manifest declaring a higher version is ignored entirely,
-#!   with a message naming the version of &ArtifactManager; that would be
-#!   needed &ndash; it is never a parse error.</Item>
+#!   <C>1</C>.  Its presence is also what marks the file as ours.  A manifest
+#!   declaring a higher version is ignored entirely, with a message naming
+#!   the version of &ArtifactManager; that would be needed &ndash; it is
+#!   never a parse error.</Item>
 #! <Mark><C>package</C></Mark>
-#! <Item>Optional.  If given, it must match the package the file belongs
-#!   to.</Item>
+#! <Item>Mandatory, and must match the package the file belongs to.  Being
+#!   mandatory lets tooling outside &GAP; read the package name here instead
+#!   of parsing <F>PackageInfo.g</F>.</Item>
 #! <Mark><C>artifacts</C></Mark>
 #! <Item>Mandatory.  Maps artifact names to declarations.  A name may consist
 #!   of letters, digits, and the characters <C>.</C>, <C>_</C> and
-#!   <C>-</C>.</Item>
+#!   <C>-</C>, and may not start with <C>.</C> &ndash; it is also the file
+#!   name of a file artifact and a component of every store path.</Item>
 #! </List>
 #!
 #! Within one artifact:
@@ -63,40 +63,32 @@
 #! <Mark><C>download</C></Mark>
 #! <Item>Mandatory, a non-empty list of <E>alternatives</E>, tried in order;
 #!   see below for what one entry contains.  Mirrors and different archive
-#!   formats use the same mechanism.  Entries that share a checksum are
-#!   mirrors of one another and share one directory in the store; entries with
-#!   different checksums are looked for separately, so it does not matter
-#!   which one a given user happened to download.</Item>
-#! <Mark><C>tree_sha256</C></Mark>
-#! <Item>Mandatory for an archive, and meaningless for a single file, whose
-#!   <C>sha256</C> already covers the bytes that land on disk.  A checksum of
-#!   the <E>unpacked</E> data, after <C>strip</C> has been applied.  It is
-#!   what makes two mirrors serving byte-different archives of the same data
-#!   interchangeable, it is checked again once an archive has been unpacked,
-#!   and it is what lets <Ref Func="VerifyArtifact"/> re-read the installed
-#!   files instead of trusting their sizes.
-#!   <Ref Func="DescribeArtifactURL"/> computes it.
+#!   formats use the same mechanism: what matters is that they all yield the
+#!   same data, and the checksum below is what says so.</Item>
+#! <Mark><C>tree_sha256</C> or <C>file_sha256</C></Mark>
+#! <Item>Mandatory, exactly one of them, and which one says what kind of
+#!   artifact this is: <C>tree_sha256</C> a directory,
+#!   <C>file_sha256</C> a single file.  Either way it is a checksum of the
+#!   artifact as installed, not of what was downloaded, so two sources in
+#!   different formats are interchangeable and share one place in the store.
+#!   It is checked once the download has been unpacked, and it is what lets
+#!   <Ref Func="VerifyArtifact"/> re-read the installed files instead of
+#!   trusting their sizes.  <Ref Func="DescribeArtifactURL"/> computes it.
 #!   <P/>
-#!   The value is the one git computes for a tree object, with SHA256 in place
-#!   of SHA1, so it can be checked against a repository created with
+#!   A tree checksum is the one git computes for a tree object, with SHA256
+#!   in place of SHA1, so it can be checked against a repository created with
 #!   <C>git init --object-format=sha256</C>.  Two consequences follow from
 #!   git's rules: the owner execute bit is part of the checksum, and an empty
 #!   directory is not.</Item>
-#! <Mark><C>strip</C></Mark>
-#! <Item>Optional, an integer.  If <C>1</C> and the archive unpacks to a
-#!   single top-level directory, the contents of that directory are moved up
-#!   one level.  Most tarballs want this.</Item>
-#! <Mark><C>size</C></Mark>
-#! <Item>Optional, in bytes.</Item>
-#! <Mark><C>description</C>, <C>version</C>, <C>license</C>,
-#!   <C>provenance</C></Mark>
-#! <Item>Optional strings, shown by <Ref Func="ShowArtifacts"/>.  Recording
-#!   where data came from and under which licence costs nothing now and cannot
-#!   be reconstructed later.</Item>
-#! <Mark><C>lazy</C></Mark>
-#! <Item>Optional, a boolean.  Reserved: it will tell an installer whether to
-#!   fetch this artifact ahead of time.  Today everything is fetched on first
-#!   use.</Item>
+#! <Mark><C>description</C></Mark>
+#! <Item>Optional, shown by <Ref Func="ShowArtifacts"/>.</Item>
+#! <Mark><C>license</C></Mark>
+#! <Item>Optional, an SPDX identifier or expression, e.g.
+#!   <C>"GPL-2.0-or-later"</C> or <C>"MIT OR Apache-2.0"</C>.</Item>
+#! <Mark><C>provenance</C></Mark>
+#! <Item>Optional.  Where the data came from and how to cite it &ndash; a DOI
+#!   or a landing page, as opposed to the download URLs, which are mirrors
+#!   and rot.  This is the part that cannot be reconstructed later.</Item>
 #! </List>
 #!
 #! Within one entry of <C>download</C>:
@@ -105,25 +97,33 @@
 #! <Mark><C>url</C></Mark>
 #! <Item>Mandatory.</Item>
 #! <Mark><C>sha256</C></Mark>
-#! <Item>Mandatory.  The SHA256 checksum of the file that is downloaded, as a
-#!   hex string.  <Ref Func="DescribeArtifactURL"/> computes it for you.</Item>
+#! <Item>Mandatory.  The checksum of the file as downloaded, which is not in
+#!   general the checksum of the artifact.</Item>
 #! <Mark><C>format</C></Mark>
-#! <Item>One of <C>"tar.gz"</C>, <C>"tar.bz2"</C>, <C>"tar.xz"</C>,
-#!   <C>"tar"</C>, <C>"zip"</C>, <C>"file"</C>, <C>"file.gz"</C>.  If it is
-#!   omitted it is guessed from the URL.  A <C>"file.gz"</C> artifact is kept
-#!   compressed on disk, since &GAP;'s <C>StringFile</C> decompresses
-#!   transparently.</Item>
+#! <Item>Mandatory.  What to <E>do</E> with the download, never a description
+#!   of it: <C>"raw"</C> to use it as it is, <C>"gz"</C>, <C>"bz2"</C> or
+#!   <C>"xz"</C> to decompress it, and <C>"tar"</C>, <C>"tar.gz"</C>,
+#!   <C>"tar.bz2"</C>, <C>"tar.xz"</C> or <C>"zip"</C> to unpack it into a
+#!   directory.  The unpacking formats belong to a <C>tree_sha256</C>
+#!   artifact and the others to a <C>file_sha256</C> one.
+#!   <P/>
+#!   It is never guessed from the URL.  A URL is a poor witness &ndash;
+#!   Zenodo's end in <F>/content</F> &ndash; and a wrong guess would install
+#!   an archive without unpacking it.  Keep a file compressed on disk by
+#!   giving <C>"raw"</C> and naming the artifact <F>...gz</F>: &GAP; reads
+#!   such a file through <C>StringFile</C> without a separate step.</Item>
 #! <Mark><C>size</C></Mark>
 #! <Item>Optional, in bytes.  It lets &ArtifactManager; say what a download
 #!   will cost before it starts, and it is what the
-#!   <C>MaxAutoDownloadSize</C> preference compares against.</Item>
+#!   <C>MaxAutoDownloadSize</C> preference compares against &ndash; per
+#!   source, so a small mirror stays usable when a large one is not.</Item>
 #! </List>
 #!
-#! Fields that &ArtifactManager; does not know are ignored, and an artifact
-#! whose <C>kind</C> it does not understand is skipped without affecting the
-#! rest of the manifest.  This is deliberate: it is what lets later versions
-#! add features without old versions choking on the file.
-
+#! A field &ArtifactManager; does not know is an error, not something to
+#! ignore: a field skipped is a feature its author believes is in force.  The
+#! granularity is one artifact, so a package that adds an artifact using a
+#! newer manifest feature keeps its other artifacts usable.
+#!
 #! @Section Functions
 
 #! @Description
