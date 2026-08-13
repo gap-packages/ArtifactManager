@@ -42,10 +42,17 @@ gap> AM_CheckDeclaration("p","a",rec(download:=[rec(sha256:=AMT_WrongSha)]));
 gap> AM_CheckDeclaration("p","a",rec(download:=[rec(url:="https://x/a",sha256:=AMT_WrongSha,format:="rar")])){[1..27]};
 "download entry 1: 'format' "
 
-# A tree hash is mandatory, and the message says how to get one.
-gap> AM_CheckDeclaration("p","a",rec(download:=[rec(url:="https://x/a",sha256:=AMT_WrongSha)]));
-"'tree_sha256' is missing.  Run  DescribeArtifactURL(\"https://x/a\");  to comp\
-ute it."
+# A tree hash is mandatory for an archive, and the message says how to get one.
+gap> AM_CheckDeclaration("p","a",rec(download:=[rec(url:="https://x/a.tar.gz",sha256:=AMT_WrongSha)]));
+"'tree_sha256' is missing.  Run  DescribeArtifactURL(\"https://x/a.tar.gz\");  \
+to compute it."
+
+# A single file needs none: its 'sha256' already covers the bytes that land on
+# disk, so a tree hash would say nothing new.
+gap> AM_CheckDeclaration("p","a",rec(download:=[rec(url:="https://x/a",sha256:=AMT_WrongSha)])).tree_sha256;
+fail
+gap> AM_CheckDeclaration("p","a",rec(download:=[rec(url:="https://x/a.g.gz",sha256:=AMT_WrongSha)])).tree_sha256;
+fail
 gap> AM_CheckDeclaration("p","a",rec(tree_sha256:="zz",download:=[rec(url:="https://x/a",sha256:=AMT_WrongSha)]));
 "'tree_sha256' is not a hexadecimal string"
 
@@ -62,7 +69,7 @@ true
 #
 # Parsing a whole manifest.
 #
-gap> m := Concatenation("{\"gapArtifactManifest\": 1, \"package\": \"p\",",
+gap> m := Concatenation("{\"gapArtifactManifestVersion\": 1, \"package\": \"p\",",
 >      "\"artifacts\": {\"one\": {\"description\": \"d\",",
 >      "\"tree_sha256\": \"", AMT_WrongSha, "\",",
 >      "\"download\": [{\"url\": \"https://x/one.tar.gz\", \"sha256\": \"",
@@ -75,11 +82,11 @@ gap> Length(decls); decls[1].name; decls[1].description;
 
 # A manifest from the future is skipped whole, with a message telling the user
 # to upgrade -- never a parse error.
-gap> AM_ParseManifest("p", "{\"gapArtifactManifest\": 99, \"artifacts\": {}}", "test");
+gap> AM_ParseManifest("p", "{\"gapArtifactManifestVersion\": 99, \"artifacts\": {}}", "test");
 [  ]
 
 # Unknown keys are ignored, so a later version can add fields.
-gap> m := Concatenation("{\"gapArtifactManifest\": 1, \"whatIsThis\": 7,",
+gap> m := Concatenation("{\"gapArtifactManifestVersion\": 1, \"whatIsThis\": 7,",
 >      "\"artifacts\": {\"one\": {\"futureField\": [1],",
 >      "\"tree_sha256\": \"", AMT_WrongSha, "\",",
 >      "\"download\": [{\"url\": \"https://x/one.tar.gz\", \"sha256\": \"",
@@ -88,7 +95,7 @@ gap> Length(AM_ParseManifest("p", m, "test"));
 1
 
 # One broken artifact does not lose the good ones.
-gap> m := Concatenation("{\"gapArtifactManifest\": 1, \"artifacts\": {",
+gap> m := Concatenation("{\"gapArtifactManifestVersion\": 1, \"artifacts\": {",
 >      "\"bad\": {}, \"good\": {\"tree_sha256\": \"", AMT_WrongSha, "\",",
 >      "\"download\": [{\"url\": \"https://x/g.zip\",",
 >      "\"sha256\": \"", AMT_WrongSha, "\"}]}}}");;
@@ -100,11 +107,11 @@ gap> AM_ParseManifest("p", "not json", "test");
 [  ]
 gap> AM_ParseManifest("p", "{}", "test");
 [  ]
-gap> AM_ParseManifest("p", "{\"gapArtifactManifest\": 1}", "test");
+gap> AM_ParseManifest("p", "{\"gapArtifactManifestVersion\": 1}", "test");
 [  ]
 gap> AM_ParseManifest("p", "[1]", "test");
 [  ]
-gap> AM_ParseManifest("p", "{\"gapArtifactManifest\":1,\"package\":\"q\",\"artifacts\":{}}", "test");
+gap> AM_ParseManifest("p", "{\"gapArtifactManifestVersion\":1,\"package\":\"q\",\"artifacts\":{}}", "test");
 [  ]
 
 #

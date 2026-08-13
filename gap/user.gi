@@ -319,10 +319,15 @@ function( arg )
     if IsBound( installed.meta.tree_sha256 ) and
        installed.meta.tree_sha256 <> fail then
       return AM_TreeSHA256( installed.path ) = installed.meta.tree_sha256;
+    elif IsBound( installed.meta.singleFile )
+         and installed.meta.singleFile <> fail then
+      # A single file has no tree hash because it does not need one: the
+      # download checksum is a checksum of exactly these bytes.
+      return AM_HexSHA256File( Concatenation( installed.path, "/",
+                 installed.meta.singleFile ) ) = installed.meta.sha256;
     fi;
-    # Only reachable for data installed by a version that did not record one.
-    Info( InfoArtifactManager, 1, "no tree hash was recorded for ", pkg, "/",
-          name, ", so its contents cannot be re-checked; comparing sizes" );
+    Info( InfoArtifactManager, 1, "no checksum of the installed files was ",
+          "recorded for ", pkg, "/", name, "; comparing sizes instead" );
   fi;
 
   if not ( IsBound( installed.meta.bytes ) and installed.meta.bytes <> fail

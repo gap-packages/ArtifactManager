@@ -1,5 +1,5 @@
 {
-  "gapArtifactManifest": 1,
+  "gapArtifactManifestVersion": 1,
   "package": "amfake",
   "artifacts": {
     "groups": {

@@ -262,6 +262,38 @@ function( blob, payload, format, filename )
   return true;
 end );
 
+# What unpacking <format> needs and cannot find, or 'fail' if all is well.
+# Checked before downloading: finding out that 'tar' is missing after pulling
+# a gigabyte across the network is not an acceptable way to learn it.
+# The name a single-file artifact has inside its directory, or 'fail' for an
+# archive.  AM_Extract decides this; keep the two in step.
+BindGlobal( "AM_InstalledFileName",
+function( entry )
+  local name;
+  if not AM_IsSingleFile( entry.format ) then
+    return fail;
+  fi;
+  name := entry.filename;
+  if entry.format = "file.gz" and not EndsWith( name, ".gz" ) then
+    name := Concatenation( name, ".gz" );
+  fi;
+  return name;
+end );
+
+BindGlobal( "AM_MissingTool",
+function( format )
+  if format in [ "file", "file.gz" ] then
+    return fail;
+  elif format = "zip" and AM_Program( "unzip" ) <> fail then
+    return fail;
+  elif AM_Program( "tar" ) <> fail then
+    return fail;
+  elif format = "zip" then
+    return "'unzip' or 'tar'";
+  fi;
+  return "'tar'";
+end );
+
 BindGlobal( "AM_StripLevels",
 function( payload, levels )
   local i, entries, dirs, junk, sub, entry;
@@ -324,12 +356,20 @@ end );
 ##
 BindGlobal( "AM_ObtainInto",
 function( decl, staging )
-  local blob, errors, entry, key, res, digest, target, extracted, irregular;
+  local blob, errors, entry, key, res, digest, target, extracted, irregular,
+        missing;
 
   blob := Concatenation( staging, "/", AM_BlobName );
   errors := [];
   for entry in decl.download do
     key := AM_ArtifactKey( decl, entry );
+
+    missing := AM_MissingTool( entry.format );
+    if missing <> fail then
+      Add( errors, Concatenation( entry.url, ": unpacking a '", entry.format,
+               "' archive needs ", missing, ", which is not installed" ) );
+      continue;
+    fi;
 
     Info( InfoArtifactManager, 1, "downloading ", decl.package, "/",
           decl.name, " (", AM_HumanSize( entry.size ), ") from ", entry.url );
@@ -386,17 +426,19 @@ function( decl, staging )
       continue;
     fi;
 
-    Info( InfoArtifactManager, 2, "verifying tree hash" );
-    digest := AM_TreeSHA256( target );
-    if digest = fail then
-      Add( errors, Concatenation( entry.url,
-               ": could not compute the tree hash of the unpacked data" ) );
-      continue;
-    elif digest <> decl.tree_sha256 then
-      Info( InfoArtifactManager, 1, "tree hash mismatch for ", entry.url,
-            "\n#I  expected ", decl.tree_sha256, "\n#I  got      ", digest );
-      Add( errors, Concatenation( entry.url, ": tree hash mismatch" ) );
-      continue;
+    if decl.tree_sha256 <> fail then
+      Info( InfoArtifactManager, 2, "verifying tree hash" );
+      digest := AM_TreeSHA256( target );
+      if digest = fail then
+        Add( errors, Concatenation( entry.url,
+                 ": could not compute the tree hash of the unpacked data" ) );
+        continue;
+      elif digest <> decl.tree_sha256 then
+        Info( InfoArtifactManager, 1, "tree hash mismatch for ", entry.url,
+              "\n#I  expected ", decl.tree_sha256, "\n#I  got      ", digest );
+        Add( errors, Concatenation( entry.url, ": tree hash mismatch" ) );
+        continue;
+      fi;
     fi;
 
     return rec( success := true, entry := entry, key := key,
@@ -569,6 +611,7 @@ function( decl, explicit )
                provenance := decl.provenance,
                sha256 := done.key.sha256,
                tree_sha256 := decl.tree_sha256,
+               singleFile := AM_InstalledFileName( done.entry ),
                format := done.entry.format,
                url := done.entry.url,
                strip := decl.strip,

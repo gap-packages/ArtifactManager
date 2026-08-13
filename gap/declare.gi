@@ -11,6 +11,9 @@ BindGlobal( "AM_ManifestFileName", "artifacts.json" );
 BindGlobal( "AM_Formats",
   [ "tar.gz", "tar.bz2", "tar.xz", "tar", "zip", "file", "file.gz" ] );
 
+InstallGlobalFunction( AM_IsSingleFile,
+  format -> format in [ "file", "file.gz" ] );
+
 BindGlobal( "AM_NameChars",
   "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-" );
 
@@ -162,14 +165,19 @@ function( pkg, name, decl )
     fi;
   od;
 
-  if not IsBound( decl.tree_sha256 ) then
+  # A single file needs no tree hash: 'sha256' already covers the exact bytes
+  # that end up on disk, so a tree hash would say nothing new.
+  if IsBound( decl.tree_sha256 ) then
+    res.tree_sha256 := AM_NormalizeHex( decl.tree_sha256 );
+    if res.tree_sha256 = fail then
+      return "'tree_sha256' is not a hexadecimal string";
+    fi;
+  elif ForAll( res.download, e -> AM_IsSingleFile( e.format ) ) then
+    res.tree_sha256 := fail;
+  else
     return Concatenation( "'tree_sha256' is missing.  Run  ",
                "DescribeArtifactURL(\"", res.download[1].url,
                "\");  to compute it." );
-  fi;
-  res.tree_sha256 := AM_NormalizeHex( decl.tree_sha256 );
-  if res.tree_sha256 = fail then
-    return "'tree_sha256' is not a hexadecimal string";
   fi;
 
   if IsBound( decl.strip ) then
@@ -208,7 +216,7 @@ end );
 #F  AM_ParseManifest( <pkg>, <text>, <source> )
 ##
 BindGlobal( "AM_KnownManifestKeys",
-  [ "gapArtifactManifest", "package", "artifacts" ] );
+  [ "gapArtifactManifestVersion", "package", "artifacts" ] );
 
 InstallGlobalFunction( AM_ParseManifest,
 function( pkg, text, source )
@@ -227,17 +235,17 @@ function( pkg, text, source )
     return [];
   fi;
 
-  if not ( IsBound( doc.gapArtifactManifest )
-           and IsPosInt( doc.gapArtifactManifest ) ) then
+  if not ( IsBound( doc.gapArtifactManifestVersion )
+           and IsPosInt( doc.gapArtifactManifestVersion ) ) then
     Info( InfoArtifactManager, 1, "ignoring ", source,
-          ": no 'gapArtifactManifest' version" );
+          ": no 'gapArtifactManifestVersion'" );
     return [];
   fi;
 
   # Forward compatibility: never a parse error, always a clear message.
-  if doc.gapArtifactManifest > AM_ManifestFormat() then
+  if doc.gapArtifactManifestVersion > AM_ManifestFormat() then
     Info( InfoArtifactManager, 1, "ignoring ", source, ": it uses manifest ",
-          "format ", doc.gapArtifactManifest, ", but this version of ",
+          "format ", doc.gapArtifactManifestVersion, ", but this version of ",
           "ArtifactManager only understands up to ", AM_ManifestFormat(),
           ".  Please upgrade ArtifactManager." );
     return [];

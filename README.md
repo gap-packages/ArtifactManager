@@ -55,7 +55,7 @@ Add `artifacts.json` to your package's root directory:
 
 ```json
 {
-  "gapArtifactManifest": 1,
+  "gapArtifactManifestVersion": 1,
   "package": "transgrp",
   "artifacts": {
     "dat32": {

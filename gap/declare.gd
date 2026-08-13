@@ -18,7 +18,7 @@
 #!
 #! @BeginLog
 #! {
-#!   "gapArtifactManifest": 1,
+#!   "gapArtifactManifestVersion": 1,
 #!   "package": "transgrp",
 #!   "artifacts": {
 #!     "dat32": {
@@ -43,9 +43,9 @@
 #! @Section Fields
 #!
 #! <List>
-#! <Mark><C>gapArtifactManifest</C></Mark>
+#! <Mark><C>gapArtifactManifestVersion</C></Mark>
 #! <Item>Mandatory, an integer.  The version of this file format; currently
-#!   <C>1</C>.  A manifest declaring a higher version is ignored entirely,
+#!   <C>1</C>.  Its presence is also what marks the file as ours.  A manifest declaring a higher version is ignored entirely,
 #!   with a message naming the version of &ArtifactManager; that would be
 #!   needed &ndash; it is never a parse error.</Item>
 #! <Mark><C>package</C></Mark>
@@ -130,6 +130,9 @@
 #! @Returns nothing
 DeclareGlobalFunction( "DeclareArtifacts" );
 
+# Whether <format> names a single file rather than an archive.
+DeclareGlobalFunction( "AM_IsSingleFile" );
+
 #! @Description
 #!   The declaration of the artifact <A>name</A> of package <A>pkg</A>, as a
 #!   record, or <K>fail</K> if there is no such artifact.
@@ -149,7 +152,7 @@ DeclareGlobalFunction( "AllArtifactDeclarations" );
 ##  Internals.
 ##
 
-# Highest 'gapArtifactManifest' version we understand.
+# Highest 'gapArtifactManifestVersion' we understand.
 DeclareGlobalFunction( "AM_ManifestFormat" );
 
 # Validate and normalise one declaration record.  Returns the normalised
