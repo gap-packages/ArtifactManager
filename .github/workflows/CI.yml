@@ -19,8 +19,8 @@ concurrency:
 jobs:
   # The CI test job
   test:
-    name: ${{ matrix.gap-version }}
-    runs-on: ubuntu-latest
+    name: "${{ matrix.os }}: GAP ${{ matrix.gap-version }}"
+    runs-on: ${{ matrix.os }}-latest
     strategy:
       fail-fast: false
       matrix:
@@ -28,15 +28,30 @@ jobs:
           - 'devel'   # current GAP development version from git
           - 'latest'  # latest GAP release
           - 'minimal' # oldest GAP release supported by this package
+        os:
+          - ubuntu
+        # This package shells out to tar, unzip and the checksum tools, and
+        # what they do differs by platform: bsdtar silently absorbs macOS
+        # extended attributes that GNU tar extracts as files, which changes
+        # an artifact's tree checksum.  One job per system is enough to see
+        # that; there is no need to cross it with every GAP version.
+        include:
+          - gap-version: 'devel'
+            os: macos
+          - gap-version: 'devel'
+            os: windows
 
     steps:
       - uses: actions/checkout@v6
+      - uses: gap-actions/setup-cygwin@v2
+        if: ${{ runner.os == 'Windows' }}
       - uses: gap-actions/setup-gap@v3
         with:
           gap-version: ${{ matrix.gap-version }}
       - uses: gap-actions/build-pkg@v3
       - uses: gap-actions/run-pkg-tests@v4
       - uses: gap-actions/run-pkg-tests@v4
+        if: ${{ runner.os != 'Windows' }}
         with:
           mode: onlyneeded
       - uses: gap-actions/process-coverage@v3
