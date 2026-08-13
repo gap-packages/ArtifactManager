@@ -31,5 +31,30 @@ skipped: sniffing needs the IO package
 #@fi
 
 #
+# Describing a URL.  A tree hash is mandatory in a manifest and no other tool
+# produces one, so this has to download and unpack.  The expected value is
+# what git reports for the same tree; see tst/hash.tst.
+#
+gap> f := AM_DescribeURL(AMT_Url("sample.tar.gz"), 1);;
+gap> f.format; f.size; f.strip;
+"tar.gz"
+596
+1
+gap> f.sha256 = AMT_Sha("sample.tar.gz");
+true
+gap> f.tree_sha256 =
+>    "65da3422418c6e2c705b385a3fbd8127d652b1e54285e78f44597ad15a2b3555";
+true
+
+# Without the strip the tarball's own top-level directory is part of the tree,
+# so the hash differs.
+gap> AM_DescribeURL(AMT_Url("sample.tar.gz"), 0).tree_sha256 = f.tree_sha256;
+false
+gap> AM_DescribeURL(AMT_Url("no-such-file.tar.gz"), 1);
+fail
+gap> DescribeArtifactURL(AMT_Url("sample.tar.gz"), 1, 2);
+Error, usage: DescribeArtifactURL( <url>[, <strip>] )
+
+#
 gap> SetInfoLevel(InfoArtifactManager, 1);
 gap> STOP_TEST("publish.tst");

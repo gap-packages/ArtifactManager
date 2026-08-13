@@ -64,6 +64,7 @@ Add `artifacts.json` to your package's root directory:
       "size": 314572800,
       "license": "GPL-2.0-or-later",
       "provenance": "https://doi.org/10.5281/zenodo.5935751",
+      "tree_sha256": "bbbb...",
       "strip": 1,
       "download": [
         { "url": "https://example.org/trans32.tar.gz", "sha256": "aaaa..." },
@@ -74,9 +75,13 @@ Add `artifacts.json` to your package's root directory:
 }
 ```
 
-`DescribeArtifactURL("https://example.org/trans32.tar.gz")` downloads the file
-once and prints the stanza above with the checksum and size filled in, so you
-do not have to compute them by hand.
+`DescribeArtifactURL("https://example.org/trans32.tar.gz")` downloads and
+unpacks the file once and prints the stanza above with everything filled in.
+Use it rather than writing the file by hand: `tree_sha256`, a checksum of the
+*unpacked* data, comes from nowhere else. It is what makes two mirrors serving
+byte-different archives of the same data interchangeable, and what lets
+`VerifyArtifact` re-read installed files instead of trusting their sizes. The
+value is git's, with SHA256 in place of SHA1.
 
 Then, in your package code, replace whatever you did before with:
 

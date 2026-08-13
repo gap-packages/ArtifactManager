@@ -5,7 +5,7 @@
 # utils package's 'Download'.  It needs the IO package (to run a server) and
 # some way of making an HTTP request, and is skipped otherwise.
 #
-#@local server, sha, store
+#@local server, sha, tree, store, one
 gap> START_TEST("download.tst");
 gap> SetInfoLevel(InfoArtifactManager, 0);
 gap> Read(Filename(DirectoriesPackageLibrary("ArtifactManager","tst"),"common.g"));
@@ -15,24 +15,21 @@ gap> Read(Filename(DirectoriesPackageLibrary("ArtifactManager","tst"),"http-serv
 gap> store := AMT_UseTempStore();;
 gap> server := AMT_StartHTTPTestServer();;
 gap> sha := AM_HexSHA256String(AMT_HTTPBody);;
+gap> tree := "146e6ef112f8a6c08fbad6382dd54c7bf38b511138c42d0847683b6065d0ed38";;
+gap> one := u -> rec(url := server.url(u), sha256 := sha,
+>                    format := "file", filename := "sample.txt");;
 gap> DeclareArtifacts("amhttp", [
 >      rec(name := "ok", description := "served over http",
->          download := [rec(url := server.url("/file"), sha256 := sha,
->                           format := "file")]),
+>          tree_sha256 := tree, download := [one("/file")]),
 >      rec(name := "redirected", description := "302 to the real thing",
->          download := [rec(url := server.url("/redirect"), sha256 := sha,
->                           format := "file")]),
+>          tree_sha256 := tree, download := [one("/redirect")]),
 >      rec(name := "corrupt", description := "server returns wrong bytes",
->          download := [rec(url := server.url("/corrupt"), sha256 := sha,
->                           format := "file")]),
+>          tree_sha256 := tree, download := [one("/corrupt")]),
 >      rec(name := "missing", description := "404",
->          download := [rec(url := server.url("/missing"), sha256 := sha,
->                           format := "file")]),
+>          tree_sha256 := tree, download := [one("/missing")]),
 >      rec(name := "failover", description := "a dead source, then a good one",
->          download := [rec(url := server.url("/missing"), sha256 := sha,
->                           format := "file"),
->                       rec(url := server.url("/file"), sha256 := sha,
->                           format := "file")]),
+>          tree_sha256 := tree,
+>          download := [one("/missing"), one("/file")]),
 >    ]);
 
 # The happy path.

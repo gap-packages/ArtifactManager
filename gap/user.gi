@@ -320,7 +320,8 @@ function( arg )
        installed.meta.tree_sha256 <> fail then
       return AM_TreeSHA256( installed.path ) = installed.meta.tree_sha256;
     fi;
-    Info( InfoArtifactManager, 1, "no tree hash was declared for ", pkg, "/",
+    # Only reachable for data installed by a version that did not record one.
+    Info( InfoArtifactManager, 1, "no tree hash was recorded for ", pkg, "/",
           name, ", so its contents cannot be re-checked; comparing sizes" );
   fi;
 

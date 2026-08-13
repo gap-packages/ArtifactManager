@@ -363,6 +363,29 @@ end );
 
 #############################################################################
 ##
+#F  AM_IsExecutableFile( <path> )
+##
+##  Whether <path> has the owner execute bit set.  Git decides a file's mode
+##  from that bit alone, and a tree hash must agree with it.
+##
+InstallGlobalFunction( AM_IsExecutableFile,
+function( path )
+  local st;
+  if AM_HaveIO() then
+    st := ValueGlobal( "IO_stat" )( path );
+    if st = fail then
+      return false;
+    fi;
+    return QuoInt( st.mode, 64 ) mod 2 = 1;
+  fi;
+  # 'IsExecutableFile' asks access(2), which for our own files reports the
+  # owner bit -- close enough, and it needs no package.
+  return IsExecutableFile( path );
+end );
+
+
+#############################################################################
+##
 #F  AM_IrregularFiles( <dir> )
 ##
 InstallGlobalFunction( AM_IrregularFiles,
@@ -435,6 +458,8 @@ function( path )
       # 0555.  The execute bit on a directory is what permits entering it,
       # so it must survive; dropping it makes the artifact unreadable.
       AM_Chmod( p, 365 );
+    elif AM_IsExecutableFile( p ) then
+      AM_Chmod( p, 365 );   # 0555; an artifact may ship a program
     else
       AM_Chmod( p, 292 );   # 0444
     fi;

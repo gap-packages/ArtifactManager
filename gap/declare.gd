@@ -25,6 +25,7 @@
 #!       "description": "Transitive groups of degree 32",
 #!       "version": "1.0",
 #!       "size": 314572800,
+#!       "tree_sha256": "bbbb...",
 #!       "license": "GPL-2.0-or-later",
 #!       "provenance": "https://doi.org/10.5281/zenodo.5935751",
 #!       "strip": 1,
@@ -74,6 +75,19 @@
 #!   compressed on disk, since &GAP;'s
 #!   <C>StringFile</C> decompresses transparently.
 #!   </Item>
+#! <Mark><C>tree_sha256</C></Mark>
+#! <Item>Mandatory.  A checksum of the <E>unpacked</E> data, after
+#!   <C>strip</C> has been applied.  It is what makes two mirrors serving
+#!   byte-different archives of the same data interchangeable, it is checked
+#!   again once an archive has been unpacked, and it is what lets
+#!   <Ref Func="VerifyArtifact"/> re-read the installed files instead of
+#!   trusting their sizes.  <Ref Func="DescribeArtifactURL"/> computes it.
+#!   <P/>
+#!   The value is the one git computes for a tree object, with SHA256 in place
+#!   of SHA1, so it can be checked against a repository created with
+#!   <C>git init --object-format=sha256</C>.  Two consequences follow from
+#!   git's rules: the owner execute bit is part of the checksum, and an empty
+#!   directory is not.</Item>
 #! <Mark><C>sha256</C></Mark>
 #! <Item>Mandatory.  The SHA256 checksum of the file that is downloaded, as a
 #!   hex string.  <Ref Func="DescribeArtifactURL"/> computes it for you.</Item>
@@ -85,12 +99,6 @@
 #! <Item>Optional, an integer.  If <C>1</C> and the archive unpacks to a
 #!   single top-level directory, the contents of that directory are moved up
 #!   one level.  Most tarballs want this.</Item>
-#! <Mark><C>tree_sha256</C></Mark>
-#! <Item>Optional.  A checksum of the unpacked data, computed by
-#!   <C>AM_TreeSHA256</C>.  With it the install is checked once more
-#!   after unpacking, and <Ref Func="VerifyArtifact"/> can re-check the
-#!   installed files rather than just their sizes.  The exact encoding is
-#!   still provisional; do not publish one yet.</Item>
 #! <Mark><C>description</C>, <C>version</C>, <C>license</C>,
 #!   <C>provenance</C></Mark>
 #! <Item>Optional strings, shown by <Ref Func="ShowArtifacts"/>.  Recording

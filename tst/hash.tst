@@ -53,28 +53,32 @@ fail
 #
 # Hashing a whole tree.
 #
+# The expected values are what git itself reports, so these check the
+# encoding and not merely that it is deterministic:
+#
+#   git init --object-format=sha256 . && git add -A && git commit -m x
+#   git rev-parse 'HEAD^{tree}'
+#
 gap> t := Filename(DirectoryTemporary(), "tree");;
 gap> CreateDirectoryRecursively(Concatenation(t, "/sub"));;
 gap> FileString(Concatenation(t, "/a"), "one");;
 gap> FileString(Concatenation(t, "/sub/b"), "two");;
-gap> h := AM_TreeSHA256(t);;
-gap> Length(h);
-64
+gap> h := "ae894f377c336de98a1f0ef81fd9d4ef0ef1a734152bb80fe0a3051d6214893a";;
 gap> AM_TreeSHA256(t) = h;
 true
 
-# Contents are part of the digest ...
-gap> FileString(Concatenation(t, "/a"), "ONE");;
-gap> AM_TreeSHA256(t) = h;
-false
-gap> FileString(Concatenation(t, "/a"), "one");;
-gap> AM_TreeSHA256(t) = h;
-true
-
-# ... and so is an empty directory, which the files alone would not show.
+# An empty directory is invisible, because git cannot store one.
 gap> CreateDirectoryRecursively(Concatenation(t, "/empty"));;
 gap> AM_TreeSHA256(t) = h;
-false
+true
+
+# The execute bit is part of the digest, which is why installing an artifact
+# must not strip it.
+gap> AM_Exec(fail, "chmod", ["+x", Concatenation(t, "/a")]).code;
+0
+gap> AM_TreeSHA256(t) =
+>    "9a859d3ad6486aae2cf1b0322467a537359a9a182d1675386e219831201066dc";
+true
 gap> AM_TreeSHA256(Concatenation(t, "/no-such-directory"));
 fail
 

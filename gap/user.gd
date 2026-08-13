@@ -90,9 +90,9 @@ DeclareGlobalFunction( "ArtifactInfo" );
 #!   was recorded at installation time; the default), or
 #!   <C>"full"</C> (re-read and re-hash everything).
 #!
-#!   <C>"full"</C> needs the artifact to declare a <C>tree_sha256</C>; without
-#!   one there is nothing to compare against, and the check falls back to
-#!   <C>"quick"</C> and says so.
+#!   <C>"full"</C> recomputes the artifact's <C>tree_sha256</C> from the
+#!   installed files, so it catches corruption that leaves their sizes
+#!   unchanged.
 #! @Arguments pkg, name[, level]
 #! @Returns <K>true</K> or <K>false</K>
 DeclareGlobalFunction( "VerifyArtifact" );

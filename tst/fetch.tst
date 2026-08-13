@@ -4,7 +4,7 @@
 # verification, unpacking, installation, re-use, and removal, and it runs
 # everywhere.
 #
-#@local store, d, p, info, first, i, tgz
+#@local store, d, p, info, first, i
 gap> START_TEST("fetch.tst");
 gap> SetInfoLevel(InfoArtifactManager, 0);
 gap> Read(Filename(DirectoriesPackageLibrary("ArtifactManager","tst"),"common.g"));
@@ -193,26 +193,19 @@ gap> First(info, r -> r.name = "tgz").bytes > 0;
 true
 
 #
-# A declared tree hash is checked again once the data is unpacked, and lets
-# VerifyArtifact re-read the installed files instead of trusting their sizes.
+# A tree hash that does not match is refused, exactly like a bad checksum:
+# the data is dropped and nothing is installed.
 #
-gap> tgz := rec(url := AMT_Url("sample.tar.gz"), sha256 := AMT_Sha("sample.tar.gz"));;
 gap> DeclareArtifacts("amtree", [
->      rec(name := "good", strip := 1, download := [tgz],
->          tree_sha256 := AM_TreeSHA256(
->              Filename(ArtifactDirectory("amtest", "tgz"), ""))),
->      rec(name := "bad", strip := 1, download := [tgz],
->          tree_sha256 := AMT_WrongSha)]);
-gap> FetchArtifact("amtree", "good");
-true
-gap> VerifyArtifact("amtree", "good", "full");
-true
+>      rec(name := "bad", strip := 1, tree_sha256 := AMT_WrongSha,
+>          download := [rec(url := AMT_Url("sample.tar.gz"),
+>                           sha256 := AMT_Sha("sample.tar.gz"))])]);
 gap> FetchArtifact("amtree", "bad");
 false
 gap> IsArtifactAvailable("amtree", "bad");
 false
 
-# Without one, a full check has nothing to compare against and says so.
+# A full check re-reads the installed files instead of trusting their sizes.
 gap> VerifyArtifact("amtest", "tgz", "full");
 true
 

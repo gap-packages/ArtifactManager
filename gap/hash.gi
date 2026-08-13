@@ -52,12 +52,35 @@ end );
 
 BindGlobal( "AM_MaxUnsafeHashSize", 64 * 1024 * 1024 );
 
+# An argv string cannot carry a NUL byte, so a prefix that has one has to
+# reach 'printf %b' as the two characters '\' and '0' instead.
+BindGlobal( "AM_PrintfEscapes",
+function( str )
+  local res, c;
+  res := "";
+  for c in str do
+    if c = '\000' then
+      Append( res, "\\0" );
+    elif c = '\\' then
+      Append( res, "\\\\" );
+    else
+      Add( res, c );
+    fi;
+  od;
+  return res;
+end );
+
 InstallGlobalFunction( AM_HexSHA256File,
-function( path )
-  local f, state, chunk, prog, res, digest, size, data;
+function( path, prefix... )
+  local f, state, chunk, prog, res, digest, size, data, script;
 
   if not IsExistingFile( path ) then
     return fail;
+  fi;
+  if IsEmpty( prefix ) then
+    prefix := "";
+  else
+    prefix := prefix[1];
   fi;
 
   # (1) IO package: chunked and binary safe, constant memory.
@@ -65,6 +88,7 @@ function( path )
     f := ValueGlobal( "IO_File" )( path, "r" );
     if f <> fail then
       state := GAP_SHA256_INIT();
+      GAP_SHA256_UPDATE( state, prefix );
       repeat
         chunk := ValueGlobal( "IO_Read" )( f, 1048576 );
         if IsString( chunk ) and Length( chunk ) > 0 then
@@ -80,12 +104,21 @@ function( path )
     fi;
   fi;
 
-  # (2) an external checksum tool.
-  for prog in [ [ "sha256sum", [ path ] ],
-                [ "shasum", [ "-a", "256", path ] ],
-                [ "openssl", [ "dgst", "-sha256", path ] ] ] do
+  # (2) an external checksum tool.  A prefix has to reach it through a pipe;
+  # 'printf' and 'cat' write it and the file in one stream.
+  for prog in [ [ "sha256sum", [ path ], "sha256sum" ],
+                [ "shasum", [ "-a", "256", path ], "shasum -a 256" ],
+                [ "openssl", [ "dgst", "-sha256", path ],
+                  "openssl dgst -sha256" ] ] do
     if AM_Program( prog[1] ) <> fail then
-      res := AM_Exec( fail, prog[1], prog[2] );
+      if prefix = "" then
+        res := AM_Exec( fail, prog[1], prog[2] );
+      else
+        script := Concatenation( "{ printf %b \"$0\"; cat \"$1\"; } | ",
+                                 prog[3] );
+        res := AM_Exec( fail, "sh",
+                        [ "-c", script, AM_PrintfEscapes( prefix ), path ] );
+      fi;
       if res.code = 0 then
         digest := AM_ExtractDigest( res.output );
         if digest <> fail then
@@ -118,7 +151,8 @@ function( path )
   if data = fail then
     return fail;
   fi;
-  return AM_NormalizeHex( HexSHA256( data ) );
+  return AM_NormalizeHex( HexSHA256(
+      CopyToStringRep( Concatenation( prefix, data ) ) ) );
 end );
 
 InstallGlobalFunction( AM_HexSHA256String,
@@ -126,68 +160,81 @@ function( str )
   return AM_NormalizeHex( HexSHA256( str ) );
 end );
 
+# 64 hex digits -> the 32 raw bytes they denote.
+BindGlobal( "AM_BytesOfHex",
+function( hex )
+  local res, i;
+  res := "";
+  for i in [ 1, 3 .. Length( hex ) - 1 ] do
+    Add( res, CHAR_INT( 16 * Position( AM_HexDigits, hex[i] )
+                        + Position( AM_HexDigits, hex[i+1] ) - 17 ) );
+  od;
+  return res;
+end );
+
+# The digest of a git object: its type, its length, a NUL, its body.
+BindGlobal( "AM_GitObjectSHA256",
+function( type, body )
+  return AM_HexSHA256String( CopyToStringRep( Concatenation(
+      type, " ", String( Length( body ) ), "\000", body ) ) );
+end );
+
 InstallGlobalFunction( AM_TreeSHA256,
 function( dir )
-  local state, entries, walk, ok;
+  local empty, walk;
 
   if not IsDirectoryPath( dir ) then
     return fail;
   fi;
 
-  state := GAP_SHA256_INIT();
-  ok := true;
+  empty := AM_GitObjectSHA256( "tree", "" );
 
-  # Collect the entries of one directory, hash them in sorted order, and
-  # recurse.  Sorting per directory gives the same order as sorting the whole
-  # list of paths, because a path and its descendants share its prefix.
-  walk := function( rel )
-    local full, names, name, sub, size, chunk, f;
+  # The hash of one directory, as git computes it.
+  walk := function( path )
+    local entries, name, full, sub, size, hex, body, entry;
 
-    full := Concatenation( dir, rel );
-    names := Difference( DirectoryContents( full ), [ ".", ".." ] );
-    Sort( names );
-    for name in names do
-      sub := Concatenation( rel, "/", name );
-      if IsDirectoryPath( Concatenation( dir, sub ) ) then
-        GAP_SHA256_UPDATE( state, CopyToStringRep(
-            Concatenation( "d\000", sub, "\000" ) ) );
-        walk( sub );
-      else
-        size := AM_FileSize( Concatenation( dir, sub ) );
-        if size = fail then
-          ok := false;
-          return;
+    entries := [];
+    for name in Difference( DirectoryContents( path ), [ ".", ".." ] ) do
+      full := Concatenation( path, "/", name );
+      if IsDirectoryPath( full ) then
+        sub := walk( full );
+        if sub = fail then
+          return fail;
+        elif sub = empty then
+          # git cannot store an empty directory, so neither do we.
+          continue;
         fi;
-        GAP_SHA256_UPDATE( state, CopyToStringRep( Concatenation(
-            "f\000", sub, "\000", String( size ), "\000" ) ) );
-        if AM_HaveIO() then
-          f := ValueGlobal( "IO_File" )( Concatenation( dir, sub ), "r" );
-          if f = fail then
-            ok := false;
-            return;
-          fi;
-          repeat
-            chunk := ValueGlobal( "IO_Read" )( f, 1048576 );
-            if IsString( chunk ) and Length( chunk ) > 0 then
-              GAP_SHA256_UPDATE( state, chunk );
-            fi;
-          until not IsString( chunk ) or Length( chunk ) = 0;
-          ValueGlobal( "IO_Close" )( f );
+        # A tree sorts as though its name ended in "/".
+        Add( entries, [ Concatenation( name, "/" ), "40000", name, sub ] );
+      else
+        size := AM_FileSize( full );
+        if size = fail then
+          return fail;
+        fi;
+        hex := AM_HexSHA256File( full, CopyToStringRep( Concatenation(
+                   "blob ", String( size ), "\000" ) ) );
+        if hex = fail then
+          return fail;
+        fi;
+        if AM_IsExecutableFile( full ) then
+          Add( entries, [ name, "100755", name, hex ] );
         else
-          chunk := StringFile( Concatenation( dir, sub ) );
-          if chunk = fail then
-            ok := false;
-            return;
-          fi;
-          GAP_SHA256_UPDATE( state, CopyToStringRep( chunk ) );
+          Add( entries, [ name, "100644", name, hex ] );
         fi;
       fi;
     od;
+
+    SortBy( entries, e -> e[1] );
+    body := "";
+    for entry in entries do
+      Append( body, entry[2] );
+      Add( body, ' ' );
+      Append( body, entry[3] );
+      Add( body, '\000' );
+      Append( body, AM_BytesOfHex( entry[4] ) );
+    od;
+    return AM_GitObjectSHA256( "tree", CopyToStringRep( body ) );
   end;
 
-  walk( "" );
-  if not ok then
-    return fail;
-  fi;
-  return AM_HexOfSHA256Words( GAP_SHA256_FINAL( state ) );
+  return walk( dir );
 end );

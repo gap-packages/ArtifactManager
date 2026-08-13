@@ -100,6 +100,11 @@ DeclareGlobalFunction( "AM_DirectorySize" );
 # check cannot be made at all.
 DeclareGlobalFunction( "AM_IrregularFiles" );
 
+# Whether <path> has the owner execute bit set.  This is the one permission
+# bit that is part of an artifact rather than of the user's umask, so it is
+# the one AM_SetTreeReadOnly preserves and AM_TreeSHA256 records.
+DeclareGlobalFunction( "AM_IsExecutableFile" );
+
 # Make <path> and everything below it read-only.  Best effort; returns nothing.
 DeclareGlobalFunction( "AM_SetTreeReadOnly" );
 DeclareGlobalFunction( "AM_SetTreeWritable" );

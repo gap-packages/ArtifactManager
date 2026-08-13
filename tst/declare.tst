@@ -1,6 +1,6 @@
 # ArtifactManager: declarations and manifests
 #
-#@local m, d, decls, ok
+#@local m, d, decls, ok, dl
 gap> START_TEST("declare.tst");
 gap> SetInfoLevel(InfoArtifactManager, 0);
 gap> Read(Filename(DirectoriesPackageLibrary("ArtifactManager","tst"),"common.g"));
@@ -8,7 +8,10 @@ gap> Read(Filename(DirectoriesPackageLibrary("ArtifactManager","tst"),"common.g"
 #
 # Validating a single declaration.
 #
-gap> ok := rec(download := [rec(url := "https://x/a.tar.gz", sha256 := AMT_WrongSha)]);;
+# A minimal valid declaration, given a URL.
+gap> dl := u -> rec(tree_sha256 := AMT_WrongSha,
+>                   download := [rec(url := u, sha256 := AMT_WrongSha)]);;
+gap> ok := dl("https://x/a.tar.gz");;
 gap> d := AM_CheckDeclaration("p", "a", ok);;
 gap> d.package; d.name; d.download[1].format;
 "p"
@@ -16,17 +19,12 @@ gap> d.package; d.name; d.download[1].format;
 "tar.gz"
 
 # The format is guessed from the URL when it is not given.
-gap> AM_CheckDeclaration("p","a",rec(download:=[rec(url:="https://x/a.zip",sha256:=AMT_WrongSha)])).download[1].format;
-"zip"
-gap> AM_CheckDeclaration("p","a",rec(download:=[rec(url:="https://x/a.tgz",sha256:=AMT_WrongSha)])).download[1].format;
-"tar.gz"
-gap> AM_CheckDeclaration("p","a",rec(download:=[rec(url:="https://x/a.grp.gz",sha256:=AMT_WrongSha)])).download[1].format;
-"file.gz"
-gap> AM_CheckDeclaration("p","a",rec(download:=[rec(url:="https://x/a",sha256:=AMT_WrongSha)])).download[1].format;
-"file"
+gap> List(["a.zip","a.tgz","a.grp.gz","a"],
+>         u -> AM_CheckDeclaration("p","a",dl(u)).download[1].format);
+[ "zip", "tar.gz", "file.gz", "file" ]
 
 # ... and so is the name a single-file artifact gets on disk.
-gap> AM_CheckDeclaration("p","a",rec(download:=[rec(url:="https://x/y/a.grp",sha256:=AMT_WrongSha)])).download[1].filename;
+gap> AM_CheckDeclaration("p","a",dl("https://x/y/a.grp")).download[1].filename;
 "a.grp"
 
 # Problems are reported as a string, not raised, so one bad artifact never
@@ -44,6 +42,13 @@ gap> AM_CheckDeclaration("p","a",rec(download:=[rec(sha256:=AMT_WrongSha)]));
 gap> AM_CheckDeclaration("p","a",rec(download:=[rec(url:="https://x/a",sha256:=AMT_WrongSha,format:="rar")])){[1..27]};
 "download entry 1: 'format' "
 
+# A tree hash is mandatory, and the message says how to get one.
+gap> AM_CheckDeclaration("p","a",rec(download:=[rec(url:="https://x/a",sha256:=AMT_WrongSha)]));
+"'tree_sha256' is missing.  Run  DescribeArtifactURL(\"https://x/a\");  to comp\
+ute it."
+gap> AM_CheckDeclaration("p","a",rec(tree_sha256:="zz",download:=[rec(url:="https://x/a",sha256:=AMT_WrongSha)]));
+"'tree_sha256' is not a hexadecimal string"
+
 # A kind we do not understand skips that artifact, with an explanation.
 gap> AM_CheckDeclaration("p","a",rec(kind:="tree",download:=[rec(url:="https://x/a",sha256:=AMT_WrongSha)])){[1..17]};
 "unsupported kind "
@@ -51,7 +56,7 @@ gap> AM_CheckDeclaration("p","a",rec(kind:="tree",download:=[rec(url:="https://x
 # Checksums are normalised when they are read, so an author who generated one
 # on GAP 4.14 (where leading zeros are dropped) is not left with a manifest
 # that never matches.
-gap> AM_CheckDeclaration("p","a",rec(download:=[rec(url:="https://x/a",sha256:="1")])).download[1].sha256 = AM_NormalizeHex("1");
+gap> AM_CheckDeclaration("p","a",rec(tree_sha256:="1",download:=[rec(url:="https://x/a",sha256:="1")])).download[1].sha256 = AM_NormalizeHex("1");
 true
 
 #
@@ -59,6 +64,7 @@ true
 #
 gap> m := Concatenation("{\"gapArtifactManifest\": 1, \"package\": \"p\",",
 >      "\"artifacts\": {\"one\": {\"description\": \"d\",",
+>      "\"tree_sha256\": \"", AMT_WrongSha, "\",",
 >      "\"download\": [{\"url\": \"https://x/one.tar.gz\", \"sha256\": \"",
 >      AMT_WrongSha, "\"}]}}}");;
 gap> decls := AM_ParseManifest("p", m, "test");;
@@ -75,6 +81,7 @@ gap> AM_ParseManifest("p", "{\"gapArtifactManifest\": 99, \"artifacts\": {}}", "
 # Unknown keys are ignored, so a later version can add fields.
 gap> m := Concatenation("{\"gapArtifactManifest\": 1, \"whatIsThis\": 7,",
 >      "\"artifacts\": {\"one\": {\"futureField\": [1],",
+>      "\"tree_sha256\": \"", AMT_WrongSha, "\",",
 >      "\"download\": [{\"url\": \"https://x/one.tar.gz\", \"sha256\": \"",
 >      AMT_WrongSha, "\"}]}}}");;
 gap> Length(AM_ParseManifest("p", m, "test"));
@@ -82,7 +89,8 @@ gap> Length(AM_ParseManifest("p", m, "test"));
 
 # One broken artifact does not lose the good ones.
 gap> m := Concatenation("{\"gapArtifactManifest\": 1, \"artifacts\": {",
->      "\"bad\": {}, \"good\": {\"download\": [{\"url\": \"https://x/g.zip\",",
+>      "\"bad\": {}, \"good\": {\"tree_sha256\": \"", AMT_WrongSha, "\",",
+>      "\"download\": [{\"url\": \"https://x/g.zip\",",
 >      "\"sha256\": \"", AMT_WrongSha, "\"}]}}}");;
 gap> List(AM_ParseManifest("p", m, "test"), d -> d.name);
 [ "good" ]

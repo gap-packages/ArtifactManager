@@ -46,13 +46,11 @@ function( path )
   return fail;
 end );
 
-InstallGlobalFunction( DescribeArtifactURL,
-function( url )
-  local tmp, blob, res, digest, size, format, sniffed;
-
-  if not IsString( url ) then
-    ErrorNoReturn( "<url> must be a string" );
-  fi;
+# Everything DescribeArtifactURL needs to say, without saying it: the caller
+# below turns this into the stanza a package author pastes.
+BindGlobal( "AM_DescribeURL",
+function( url, strip )
+  local tmp, blob, res, digest, size, format, sniffed, payload, tree;
 
   tmp := DirectoryTemporary();
   if tmp = fail then
@@ -73,7 +71,6 @@ function( url )
   size := AM_FileSize( blob );
   format := AM_GuessFormat( url );
   sniffed := AM_SniffFormat( blob );
-  RemoveFile( blob );
 
   if digest = fail then
     Info( InfoArtifactManager, 1, "could not compute the checksum" );
@@ -92,15 +89,69 @@ function( url )
     format := sniffed;
   fi;
 
-  Print( "{ \"url\": \"", url, "\",\n" );
-  Print( "  \"sha256\": \"", digest, "\",\n" );
-  if size <> fail then
-    Print( "  \"size\": ", size, ",\n" );
+  # The tree hash is mandatory in a manifest and cannot be produced by any
+  # other tool, so unpack the archive here rather than leave the author stuck.
+  payload := Filename( tmp, "payload" );
+  Info( InfoArtifactManager, 1, "unpacking to compute the tree hash" );
+  tree := AM_Extract( blob, payload, format, AM_BaseName( url ) );
+  if IsString( tree ) then
+    Info( InfoArtifactManager, 1, "could not unpack: ", tree );
+    return fail;
   fi;
-  Print( "  \"format\": \"", format, "\" }\n" );
-  if size <> fail then
-    Print( "\n# that is ", AM_HumanSize( size ), "\n" );
+  if strip > 0 then
+    AM_StripLevels( payload, strip );
+  fi;
+  tree := AM_TreeSHA256( payload );
+  RemoveDirectoryRecursively( payload );
+  RemoveFile( blob );
+  if tree = fail then
+    Info( InfoArtifactManager, 1, "could not compute the tree hash" );
+    return fail;
   fi;
 
-  return rec( url := url, sha256 := digest, size := size, format := format );
+  return rec( url := url, sha256 := digest, size := size, format := format,
+              tree_sha256 := tree, strip := strip );
+end );
+
+InstallGlobalFunction( DescribeArtifactURL,
+function( url, strip... )
+  local res;
+
+  if not IsString( url ) then
+    ErrorNoReturn( "<url> must be a string" );
+  elif Length( strip ) > 1
+       or ( not IsEmpty( strip )
+            and not ( IsInt( strip[1] ) and strip[1] >= 0 ) ) then
+    ErrorNoReturn( "usage: DescribeArtifactURL( <url>[, <strip>] )" );
+  fi;
+  if IsEmpty( strip ) then
+    strip := 1;
+  else
+    strip := strip[1];
+  fi;
+
+  res := AM_DescribeURL( url, strip );
+  if res = fail then
+    return fail;
+  fi;
+
+  Print( "\"<name>\": {\n" );
+  Print( "  \"description\": \"...\",\n" );
+  Print( "  \"tree_sha256\": \"", res.tree_sha256, "\",\n" );
+  if res.strip <> 0 then
+    Print( "  \"strip\": ", res.strip, ",\n" );
+  fi;
+  Print( "  \"download\": [\n" );
+  Print( "    { \"url\": \"", res.url, "\",\n" );
+  Print( "      \"sha256\": \"", res.sha256, "\",\n" );
+  if res.size <> fail then
+    Print( "      \"size\": ", res.size, ",\n" );
+  fi;
+  Print( "      \"format\": \"", res.format, "\" } ]\n" );
+  Print( "}\n" );
+  if res.size <> fail then
+    Print( "\n# that is ", AM_HumanSize( res.size ), " to download\n" );
+  fi;
+
+  return res;
 end );

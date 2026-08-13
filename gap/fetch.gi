@@ -386,19 +386,17 @@ function( decl, staging )
       continue;
     fi;
 
-    if decl.tree_sha256 <> fail then
-      Info( InfoArtifactManager, 2, "verifying tree hash" );
-      digest := AM_TreeSHA256( target );
-      if digest = fail then
-        Add( errors, Concatenation( entry.url,
-                 ": could not compute the tree hash of the unpacked data" ) );
-        continue;
-      elif digest <> decl.tree_sha256 then
-        Info( InfoArtifactManager, 1, "tree hash mismatch for ", entry.url,
-              "\n#I  expected ", decl.tree_sha256, "\n#I  got      ", digest );
-        Add( errors, Concatenation( entry.url, ": tree hash mismatch" ) );
-        continue;
-      fi;
+    Info( InfoArtifactManager, 2, "verifying tree hash" );
+    digest := AM_TreeSHA256( target );
+    if digest = fail then
+      Add( errors, Concatenation( entry.url,
+               ": could not compute the tree hash of the unpacked data" ) );
+      continue;
+    elif digest <> decl.tree_sha256 then
+      Info( InfoArtifactManager, 1, "tree hash mismatch for ", entry.url,
+            "\n#I  expected ", decl.tree_sha256, "\n#I  got      ", digest );
+      Add( errors, Concatenation( entry.url, ": tree hash mismatch" ) );
+      continue;
     fi;
 
     return rec( success := true, entry := entry, key := key,
