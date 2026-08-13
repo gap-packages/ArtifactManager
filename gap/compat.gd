@@ -85,6 +85,10 @@ DeclareGlobalFunction( "AM_CopyFile" );
 # is a call to Exec2.
 DeclareGlobalFunction( "AM_Exec" );
 
+# As AM_Exec, but stderr is not folded into the output.  For commands whose
+# output is parsed rather than shown.
+DeclareGlobalFunction( "AM_ExecQuiet" );
+
 # Absolute path of the external program <name>, or 'fail'.  Cached.
 DeclareGlobalFunction( "AM_Program" );
 

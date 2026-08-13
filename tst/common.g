@@ -47,7 +47,7 @@ end );
 # before it is ever hashed, so its value is never reached.
 BindGlobal( "AMT_TreeSha", rec(
     sample := "523f33c8b115ae982bca50b733af2df49a26a95e42033774b5ae24afa0d8ff55",
-    macos  := "5410130cbe2189818416b5b20be4dfa0f2e1dfeeae128b8b2b357909c132d706",
+    macos  := "5f2245e00d833827b3c7cd4e4e444103131f0c59f313936f595ebcefa3b6fae8",
     link   := "0cb27ebb557eb20cd67330eb9a20e68743edb13346a613d400158645ec0671fa" ) );
 
 # Plain "plain artifact\n", and the gzip of it.

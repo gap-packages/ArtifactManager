@@ -117,4 +117,17 @@ gap> CleanArtifactTemp();
 gap> CleanArtifactTemp();
 0
 gap> SetInfoLevel(InfoArtifactManager, 1);
+
+#
+# Running a program whose output we parse.  'tar' warns on stderr about
+# extended headers it does not know; folded into stdout, one such line
+# becomes a member called '/usr/bin/tar:' and the archive is rejected as a
+# tarbomb.  This passed on macOS for months because bsdtar stays quiet.
+#
+gap> AM_Exec(fail, "sh", ["-c", "echo out; echo noise >&2"]).output;
+"out\nnoise\n"
+gap> AM_ExecQuiet(fail, "sh", ["-c", "echo out; echo noise >&2"]).output;
+"out\n"
+
+#
 gap> STOP_TEST("store.tst");

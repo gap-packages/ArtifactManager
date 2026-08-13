@@ -170,9 +170,9 @@ function( blob, format )
   local res;
 
   if format = "zip" and AM_Program( "unzip" ) <> fail then
-    res := AM_Exec( fail, "unzip", [ "-Z", "-1", blob ] );
+    res := AM_ExecQuiet( fail, "unzip", [ "-Z", "-1", blob ] );
   elif AM_Program( "tar" ) <> fail then
-    res := AM_Exec( fail, "tar", [ "-tf", blob ] );
+    res := AM_ExecQuiet( fail, "tar", [ "-tf", blob ] );
   else
     return fail;
   fi;

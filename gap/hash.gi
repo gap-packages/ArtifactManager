@@ -112,12 +112,12 @@ function( path, prefix... )
                   "openssl dgst -sha256" ] ] do
     if AM_Program( prog[1] ) <> fail then
       if prefix = "" then
-        res := AM_Exec( fail, prog[1], prog[2] );
+        res := AM_ExecQuiet( fail, prog[1], prog[2] );
       else
         script := Concatenation( "{ printf %b \"$0\"; cat \"$1\"; } | ",
                                  prog[3] );
-        res := AM_Exec( fail, "sh",
-                        [ "-c", script, AM_PrintfEscapes( prefix ), path ] );
+        res := AM_ExecQuiet( fail, "sh",
+                   [ "-c", script, AM_PrintfEscapes( prefix ), path ] );
       fi;
       if res.code = 0 then
         digest := AM_ExtractDigest( res.output );

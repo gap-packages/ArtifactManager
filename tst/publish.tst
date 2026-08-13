@@ -31,7 +31,7 @@ skipped: sniffing needs the IO package
 gap> f := AM_DescribeURL(AMT_Url("sample.tar.gz"), "tar.gz", "data");;
 gap> f.format; f.size; f.isDirectory;
 "tar.gz"
-596
+220
 true
 gap> f.sha256 = AMT_Sha("sample.tar.gz");
 true

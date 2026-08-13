@@ -53,8 +53,11 @@ end );
 ##
 #F  AM_Exec( <dir>, <prog>, <args> )
 ##
-InstallGlobalFunction( AM_Exec,
-function( dir, prog, args )
+# <merge> = true folds stderr into the output, which is what makes an error
+# message readable; = false keeps it out, which is what makes the output
+# parseable.  Both are needed and TODO(U3) is why we cannot have both at once.
+BindGlobal( "AM_ExecStreams",
+function( dir, prog, args, merge )
   local path, sh, out, stream, code, allargs;
 
   path := AM_Program( prog );
@@ -78,7 +81,7 @@ function( dir, prog, args )
   # *constant* script; the command and its arguments become "$0" "$@", so
   # nothing is ever interpreted by the shell.  Drop this once gap#4657 lands.
   sh := AM_Program( "sh" );
-  if sh <> fail then
+  if merge and sh <> fail then
     allargs := Concatenation( [ "-c", "\"$0\" \"$@\" 2>&1", path ], args );
     code := Process( dir, sh, InputTextNone(), stream, allargs );
   else
@@ -95,6 +98,20 @@ function( dir, prog, args )
   return rec( code := code, output := out );
 end );
 
+InstallGlobalFunction( AM_Exec,
+function( dir, prog, args )
+  return AM_ExecStreams( dir, prog, args, true );
+end );
+
+# Same, but stderr is left alone.  Use this whenever the output is parsed:
+# a warning on stderr would otherwise become a line of data.  GNU tar warns
+# about unknown extended headers, which is enough to make a member listing
+# look like it contains a file called '/usr/bin/tar:'.
+InstallGlobalFunction( AM_ExecQuiet,
+function( dir, prog, args )
+  return AM_ExecStreams( dir, prog, args, false );
+end );
+
 
 #############################################################################
 ##
@@ -109,7 +126,7 @@ function()
     return ValueGlobal( "IO_gettimeofday" )().tv_sec;
   fi;
   if AM_Program( "date" ) <> fail then
-    res := AM_Exec( fail, "date", [ "+%s" ] );
+    res := AM_ExecQuiet( fail, "date", [ "+%s" ] );
     if res.code = 0 then
       res := Int( Filtered( res.output, c -> c in "0123456789" ) );
       if res <> fail then
@@ -124,7 +141,7 @@ InstallGlobalFunction( AM_TimeString,
 function()
   local res;
   if AM_Program( "date" ) <> fail then
-    res := AM_Exec( fail, "date", [ "+%Y-%m-%dT%H:%M:%S" ] );
+    res := AM_ExecQuiet( fail, "date", [ "+%Y-%m-%dT%H:%M:%S" ] );
     if res.code = 0 then
       return Filtered( res.output, c -> c <> '\n' );
     fi;
@@ -155,7 +172,7 @@ function( path )
   fi;
 
   if AM_Program( "wc" ) <> fail then
-    res := AM_Exec( fail, "wc", [ "-c", path ] );
+    res := AM_ExecQuiet( fail, "wc", [ "-c", path ] );
     if res.code = 0 then
       digits := First( SplitString( res.output, " \n\t" ), s -> s <> "" );
       if digits <> fail then
@@ -376,7 +393,7 @@ function( path )
 
   # 'du' knows about blocks and is much faster than walking in GAP.
   if not AM_HaveIO() and AM_Program( "du" ) <> fail then
-    res := AM_Exec( fail, "du", [ "-sk", path ] );
+    res := AM_ExecQuiet( fail, "du", [ "-sk", path ] );
     if res.code = 0 then
       res := Int( SplitString( res.output, " \t\n" )[1] );
       if res <> fail then
@@ -449,7 +466,7 @@ function( dir )
   fi;
 
   if AM_Program( "find" ) <> fail then
-    out := AM_Exec( fail, "find", [ dir, "!", "-type", "f", "!", "-type", "d" ] );
+    out := AM_ExecQuiet( fail, "find", [ dir, "!", "-type", "f", "!", "-type", "d" ] );
     if out.code = 0 then
       return Filtered( SplitString( out.output, "\n" ), s -> s <> "" );
     fi;
