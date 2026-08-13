@@ -52,7 +52,8 @@ jobs:
       # TEMPORARY: find out why a zip extracts differently under Cygwin.
       - name: diagnose zip extraction
         if: ${{ runner.os == 'Windows' }}
-        run: gap -q -b $GITHUB_WORKSPACE/dev/diag-windows.g
+        shell: C:\cygwin-bash-folder\bash.BAT --noprofile --norc -e -o pipefail {0}
+        run: gap -q -b dev/diag-windows.g
       - uses: gap-actions/run-pkg-tests@v4
       - uses: gap-actions/run-pkg-tests@v4
         if: ${{ runner.os != 'Windows' }}
