@@ -1,1 +1,4 @@
-* text=auto
+# Test fixtures are checked byte for byte against checksums recorded in the
+# tests, so git must not touch them.  Without this, a Windows checkout
+# rewrites sample.txt to CRLF and every checksum over it is wrong.
+tst/data/** -text
