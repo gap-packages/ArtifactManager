@@ -45,8 +45,6 @@
 #! <Item>the environment variable <C>ARTIFACTMANAGER_STORE</C> &ndash; the
 #!   right knob for a multi-user machine or a container image, since it needs
 #!   no per-user configuration;</Item>
-#! <Item>a Julia scratchspace, when &GAP; runs inside Julia (as in
-#!   <Package>Oscar</Package>);</Item>
 #! <Item><C>GAPInfo.UserGapRoot</C><C>/artifacts</C>, normally
 #!   <F>~/.gap/artifacts</F>;</Item>
 #! <Item>the <C>gap/artifacts</C> subdirectory of <C>XDG_DATA_HOME</C>, or
@@ -55,6 +53,9 @@
 #! <Item>nothing.  Artifacts are then downloaded into a temporary directory
 #!   and discarded when &GAP; exits.</Item>
 #! </Enum>
+#!
+#! The same store is used inside <Package>Oscar</Package> as outside it, so a
+#! gigabyte is downloaded once rather than once per environment.
 #!
 #! The store is never a package directory: data that can be re-downloaded has
 #! no business inside a package installation, which may well be read-only or

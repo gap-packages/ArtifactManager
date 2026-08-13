@@ -15,8 +15,8 @@ DeclareUserPreference( rec(
 string means that artifacts are not stored permanently: they are downloaded \
 into a temporary directory which is removed when GAP exits.",
     "If this preference is not set, a default is computed: the environment \
-variable ARTIFACTMANAGER_STORE if it is set; otherwise a Julia scratchspace \
-if GAP runs inside Julia; otherwise the subdirectory 'artifacts' of \
+variable ARTIFACTMANAGER_STORE if it is set; otherwise the subdirectory \
+'artifacts' of \
 GAPInfo.UserGapRoot; otherwise $XDG_DATA_HOME/gap/artifacts respectively \
 ~/.local/share/gap/artifacts; otherwise the empty string.",
     "On a machine with several users, prefer setting the environment \

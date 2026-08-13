@@ -40,16 +40,11 @@ function()
     return val;
   fi;
 
-  # Inside Julia (Oscar), use a scratchspace so that Julia's own garbage
-  # collection knows about our data.
-  if IsPackageLoaded( "juliainterface" ) and
-     IsBoundGlobal( "GetJuliaScratchspace" ) then
-    val := ValueGlobal( "GetJuliaScratchspace" )( "gap_artifacts" );
-    if IsString( val ) then
-      return val;
-    fi;
-  fi;
-
+  # Not a Julia scratchspace when running inside Oscar, though AtlasRep does
+  # that: it would give someone who uses both Oscar and plain GAP two copies
+  # of every artifact, and Julia's scratchspace collector could delete data
+  # our own bookkeeping still records as present.  Anyone who does want a
+  # separate store there can set ARTIFACTMANAGER_STORE above.
   if GAPInfo.UserGapRoot <> fail then
     return Concatenation( GAPInfo.UserGapRoot, "/artifacts" );
   fi;
