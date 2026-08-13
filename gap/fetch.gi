@@ -257,7 +257,11 @@ function( blob, payload, format, name )
 
   if format = "zip" then
     if AM_Program( "unzip" ) <> fail then
-      res := AM_Exec( fail, "unzip", [ "-q", "-o", blob, "-d", payload ] );
+      # '-b' switches off text conversion.  A zip records per entry whether
+      # it holds text, and unzip on Cygwin honours that by rewriting LF as
+      # CRLF -- which corrupts the data and breaks its checksum.
+      res := AM_Exec( fail, "unzip",
+                      [ "-q", "-o", "-b", blob, "-d", payload ] );
     else
       # bsdtar handles zip; GNU tar does not.
       res := AM_Exec( fail, "tar", [ "-xf", blob, "-C", payload ] );
