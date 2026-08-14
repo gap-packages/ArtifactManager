@@ -61,26 +61,26 @@ Add `artifacts.json` to your package's root directory:
     "dat32": {
       "description": "Transitive groups of degree 32",
       "license": "GPL-2.0-or-later",
-      "provenance": "https://doi.org/10.5281/zenodo.5935751",
       "tree_sha256": "bbbb...",
       "download": [
         { "url": "https://example.org/trans32.tar.gz",
           "sha256": "aaaa...", "size": 314572800, "format": "tar.gz" },
-        { "url": "https://mirror.example.org/trans32.zip",
-          "sha256": "cccc...", "format": "zip" }
+        { "url": "https://mirror.example.org/trans32.tar",
+          "sha256": "cccc...", "format": "tar" }
       ]
     }
   }
 }
 ```
 
-`DescribeArtifactURL("https://example.org/trans32.tar.gz", "dat32")` downloads
+`DescribeArtifactURL("https://example.org/trans32.tar.gz", "dat32", "tar.gz")`
+downloads
 and unpacks the file once and prints the stanza above with everything filled
 in. Use it rather than writing the file by hand: `tree_sha256` comes from
 nowhere else.
 
 That checksum is of the data as installed, not of what was downloaded, which
-is why the two sources above can be a tarball and a zip and still be one
+is why the two sources above can be compressed or not and still be one
 artifact. For a single file, declare `file_sha256` instead — that is all that
 distinguishes the two kinds. Tree checksums are git's, with SHA256 in place of
 SHA1, so you can check one against `git init --object-format=sha256`.

@@ -41,17 +41,15 @@ gap> IsReadableFile(Filename(d, "sample/hello.txt"));
 true
 
 #
-# A zip archive.
+# Two sources in different formats.  What identifies an artifact is the tree
+# they unpack to, so they are one artifact and share one place in the store.
 #
-gap> d := ArtifactDirectory("amtest", "zip");;
-gap> StringFile(Filename(d, "sample/hello.txt"));
-"hello artifact\n"
-
-# The zip and the tarball unpack to the same tree, so they are the same
-# artifact as far as the store is concerned.
-gap> ArtifactDeclaration("amtest", "zip").sha256
+gap> ArtifactDeclaration("amtest", "twoformats").sha256
 >      = ArtifactDeclaration("amtest", "tgz").sha256;
 true
+gap> d := ArtifactDirectory("amtest", "twoformats");;
+gap> StringFile(Filename(d, "sample/hello.txt"));
+"hello artifact\n"
 
 #
 # Archives built on a Mac carry .DS_Store and AppleDouble files beside the
@@ -201,7 +199,7 @@ gap> SetUserPreference("ArtifactManager", "AllowDownloads", true);
 gap> info := ArtifactInfo("amtest");;
 gap> SortedList(List(info, r -> r.name));
 [ "big", "broken", "gunzipped", "macos", "mirrored", "sample.txt.gz", 
-  "symlink", "tgz", "txt", "zip" ]
+  "symlink", "tgz", "twoformats", "txt" ]
 gap> First(info, r -> r.name = "tgz").status;
 "installed"
 gap> First(info, r -> r.name = "broken").status;
@@ -240,7 +238,7 @@ gap> RemoveArtifact("amtest", "tgz");
 false
 gap> RemoveAllArtifacts("amtest") >= 1;
 true
-gap> ForAny(["zip", "txt", "gunzipped"], n -> IsArtifactAvailable("amtest", n));
+gap> ForAny(["twoformats", "txt", "gunzipped"], n -> IsArtifactAvailable("amtest", n));
 false
 
 #

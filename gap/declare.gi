@@ -11,13 +11,15 @@ BindGlobal( "AM_ManifestFileName", "artifacts.json" );
 # What to do with what was downloaded.  A format is an instruction, never a
 # description: we never look at the URL to decide.
 #   "raw"                              use the file as it is
-#   "gz", "bz2", "xz"                  decompress it, keep one file
-#   "tar", "tar.gz", "tar.bz2",
-#   "tar.xz", "zip"                    unpack it into a directory
-BindGlobal( "AM_ExtractFormats",
-  [ "tar", "tar.gz", "tar.bz2", "tar.xz", "zip" ] );
+#   "gz"                               decompress it, keep one file
+#   "tar", "tar.gz"                    unpack it into a directory
+#
+# Only gzip for now.  Every added format is another external tool to require
+# on every platform, and zip in particular is where the archivers disagree:
+# see #7.
+BindGlobal( "AM_ExtractFormats", [ "tar", "tar.gz" ] );
 
-BindGlobal( "AM_DecompressFormats", [ "gz", "bz2", "xz" ] );
+BindGlobal( "AM_DecompressFormats", [ "gz" ] );
 
 BindGlobal( "AM_Formats",
   Concatenation( [ "raw" ], AM_DecompressFormats, AM_ExtractFormats ) );
@@ -119,12 +121,11 @@ function( entry, index )
 end );
 
 BindGlobal( "AM_KnownArtifactKeys",
-  [ "download", "tree_sha256", "file_sha256",
-    "description", "license", "provenance" ] );
+  [ "download", "tree_sha256", "file_sha256", "description", "license" ] );
 
 InstallGlobalFunction( AM_CheckDeclaration,
 function( pkg, name, decl )
-  local res, i, entry, downloads, opt, unknown, wanted;
+  local res, i, entry, downloads, unknown, wanted;
 
   if not IsRecord( decl ) then
     return "the declaration must be an object";
@@ -192,16 +193,14 @@ function( pkg, name, decl )
     fi;
   od;
 
-  for opt in [ "description", "provenance" ] do
-    if IsBound( decl.( opt ) ) then
-      if not IsString( decl.( opt ) ) then
-        return Concatenation( "'", opt, "' must be a string" );
-      fi;
-      res.( opt ) := decl.( opt );
-    else
-      res.( opt ) := "";
+  if IsBound( decl.description ) then
+    if not IsString( decl.description ) then
+      return "'description' must be a string";
     fi;
-  od;
+    res.description := decl.description;
+  else
+    res.description := "";
+  fi;
 
   if IsBound( decl.license ) then
     if not ( IsString( decl.license ) and decl.license <> ""

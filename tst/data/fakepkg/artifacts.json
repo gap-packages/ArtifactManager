@@ -5,16 +5,15 @@
     "groups": {
       "description": "Groups of degree 32",
       "license": "GPL-2.0-or-later",
-      "provenance": "https://doi.org/10.5281/zenodo.0000000",
       "tree_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
       "download": [
         { "url": "https://example.org/groups32.tar.gz",
           "sha256": "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0",
           "size": 300000000,
           "format": "tar.gz" },
-        { "url": "https://mirror.example.org/groups32.zip",
+        { "url": "https://mirror.example.org/groups32.tar",
           "sha256": "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0",
-          "format": "zip" }
+          "format": "tar" }
       ]
     },
     "table": {

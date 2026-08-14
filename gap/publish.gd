@@ -9,19 +9,18 @@
 #! @Section Writing the declaration
 
 #! @Description
-#!   Downloads <A>url</A>, unpacks it, and prints the artifact stanza to paste
-#!   into <F>artifacts.json</F>: the download checksum, size and format, and
-#!   the checksum of the artifact itself.  Nothing is kept.
+#!   Downloads <A>url</A>, unpacks it as <A>format</A> says, and prints the
+#!   artifact stanza to paste into <F>artifacts.json</F>: the download
+#!   checksum, the size, and the checksum of the unpacked data under the
+#!   artifact name <A>name</A>.  Nothing is kept.
 #!
-#!   <A>name</A> is the artifact name, which for a file artifact is also its
-#!   file name.  <A>format</A> says what to do with the download; without it
-#!   the bytes are inspected and a format suggested, which is a suggestion for
-#!   you to confirm rather than something &ArtifactManager; would ever do at
-#!   run time.
+#!   <A>format</A> is required and never guessed.  A URL is a poor witness of
+#!   what it serves, and a wrong guess would record a checksum for data that
+#!   was never unpacked.
 #!
 #!   This exists because a manifest cannot be written by hand: the artifact
 #!   checksum comes from nowhere else.
-#! @Arguments url[, name[, format]]
+#! @Arguments url, name, format
 #! @Returns a record with components <C>url</C>, <C>sha256</C>, <C>size</C>,
 #!   <C>format</C>, <C>artifactSha256</C> and <C>isDirectory</C>, or
 #!   <K>fail</K>

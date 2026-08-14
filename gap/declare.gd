@@ -24,13 +24,12 @@
 #!     "dat32": {
 #!       "description": "Transitive groups of degree 32",
 #!       "license": "GPL-2.0-or-later",
-#!       "provenance": "https://doi.org/10.5281/zenodo.5935751",
 #!       "tree_sha256": "bbbb...",
 #!       "download": [
 #!         { "url": "https://example.org/trans32.tar.gz",
 #!           "sha256": "aaaa...", "size": 314572800, "format": "tar.gz" },
-#!         { "url": "https://mirror.example.org/trans32.zip",
-#!           "sha256": "cccc...", "format": "zip" }
+#!         { "url": "https://mirror.example.org/trans32.tar",
+#!           "sha256": "cccc...", "format": "tar" }
 #!       ]
 #!     }
 #!   }
@@ -85,10 +84,6 @@
 #! <Mark><C>license</C></Mark>
 #! <Item>Optional, an SPDX identifier or expression, e.g.
 #!   <C>"GPL-2.0-or-later"</C> or <C>"MIT OR Apache-2.0"</C>.</Item>
-#! <Mark><C>provenance</C></Mark>
-#! <Item>Optional.  Where the data came from and how to cite it &ndash; a DOI
-#!   or a landing page, as opposed to the download URLs, which are mirrors
-#!   and rot.  This is the part that cannot be reconstructed later.</Item>
 #! </List>
 #!
 #! Within one entry of <C>download</C>:
@@ -101,11 +96,14 @@
 #!   general the checksum of the artifact.</Item>
 #! <Mark><C>format</C></Mark>
 #! <Item>Mandatory.  What to <E>do</E> with the download, never a description
-#!   of it: <C>"raw"</C> to use it as it is, <C>"gz"</C>, <C>"bz2"</C> or
-#!   <C>"xz"</C> to decompress it, and <C>"tar"</C>, <C>"tar.gz"</C>,
-#!   <C>"tar.bz2"</C>, <C>"tar.xz"</C> or <C>"zip"</C> to unpack it into a
-#!   directory.  The unpacking formats belong to a <C>tree_sha256</C>
-#!   artifact and the others to a <C>file_sha256</C> one.
+#!   of it: <C>"raw"</C> to use it as it is, <C>"gz"</C> to decompress it,
+#!   and <C>"tar"</C> or <C>"tar.gz"</C> to unpack it into a directory.  The
+#!   unpacking formats belong to a <C>tree_sha256</C> artifact and the others
+#!   to a <C>file_sha256</C> one.
+#!   <P/>
+#!   Only gzip for now.  Every further format is another tool to require on
+#!   every platform, and zip is where the archivers disagree about what they
+#!   produce.
 #!   <P/>
 #!   It is never guessed from the URL.  A URL is a poor witness &ndash;
 #!   Zenodo's end in <F>/content</F> &ndash; and a wrong guess would install
@@ -120,9 +118,12 @@
 #! </List>
 #!
 #! A field &ArtifactManager; does not know is an error, not something to
-#! ignore: a field skipped is a feature its author believes is in force.  The
-#! granularity is one artifact, so a package that adds an artifact using a
-#! newer manifest feature keeps its other artifacts usable.
+#! ignore: a field skipped is a feature its author believes is in force.  Such
+#! a field makes the artifact it appears in unusable, and leaves the others in
+#! the file alone.
+#!
+#! That is separate from <C>gapArtifactManifestVersion</C>, which is recorded
+#! once per file and so can only be judged for the file as a whole.
 #!
 #! @Section Functions
 

@@ -41,8 +41,8 @@ gap> AM_CheckDeclaration("p","a",rec(tree_sha256:=AMT_WrongSha,
 "the source 'https://x/a' has format 'raw', but this artifact needs an unpacki\
 ng format"
 gap> AM_CheckDeclaration("p","a",rec(file_sha256:=AMT_WrongSha,
->      download:=[rec(url:="https://x/a",sha256:=AMT_WrongSha,format:="zip")]));
-"the source 'https://x/a' has format 'zip', but this artifact needs 'raw' or a\
+>      download:=[rec(url:="https://x/a",sha256:=AMT_WrongSha,format:="tar")]));
+"the source 'https://x/a' has format 'tar', but this artifact needs 'raw' or a\
  decompressing format"
 
 #
@@ -130,8 +130,8 @@ gap> AM_ParseManifest("p", Concatenation("{\"gapArtifactManifestVersion\": 1,",
 gap> m := Concatenation("{\"gapArtifactManifestVersion\": 1, \"package\": \"p\",",
 >      "\"artifacts\": {",
 >      "\"bad\": {\"fromTheFuture\": 1}, \"good\": {\"tree_sha256\": \"",
->      AMT_WrongSha, "\", \"download\": [{\"url\": \"https://x/g.zip\",",
->      "\"format\": \"zip\", \"sha256\": \"", AMT_WrongSha, "\"}]}}}");;
+>      AMT_WrongSha, "\", \"download\": [{\"url\": \"https://x/g.tar\",",
+>      "\"format\": \"tar\", \"sha256\": \"", AMT_WrongSha, "\"}]}}}");;
 gap> List(AM_ParseManifest("p", m, "test"), d -> d.name);
 [ "good" ]
 
@@ -164,7 +164,7 @@ gap> ArtifactDeclaration("no-such-package", "x");
 fail
 gap> SortedList(List(AllArtifactDeclarations("amtest"), d -> d.name));
 [ "big", "broken", "gunzipped", "macos", "mirrored", "sample.txt.gz", 
-  "symlink", "tgz", "txt", "zip" ]
+  "symlink", "tgz", "twoformats", "txt" ]
 
 # A bad runtime declaration is a programming error, so here it does raise.
 gap> DeclareArtifacts("amtest", [rec(name := "x")]);
@@ -201,7 +201,7 @@ true
 # Two sources in different formats are one artifact, because the tree they
 # unpack to is the same.
 gap> List(d.download, e -> e.format);
-[ "tar.gz", "zip" ]
+[ "tar.gz", "tar" ]
 gap> ArtifactDeclaration("amfake", "table").isDirectory;
 false
 gap> Unbind(GAPInfo.PackagesInfo.amfake);

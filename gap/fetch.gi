@@ -169,9 +169,7 @@ InstallGlobalFunction( AM_ArchiveMembers,
 function( blob, format )
   local res;
 
-  if format = "zip" and AM_Program( "unzip" ) <> fail then
-    res := AM_ExecQuiet( fail, "unzip", [ "-Z", "-1", blob ] );
-  elif AM_Program( "tar" ) <> fail then
+  if AM_Program( "tar" ) <> fail then
     res := AM_ExecQuiet( fail, "tar", [ "-tf", blob ] );
   else
     return fail;
@@ -203,9 +201,7 @@ end );
 
 # Decompressors, by format.  Each writes to stdout, so the shell does the
 # redirection: a gigabyte must not pass through a GAP string.
-BindGlobal( "AM_Decompressors",
-  rec( gz := [ "gzip", "gunzip" ], bz2 := [ "bzip2", "bunzip2" ],
-       xz := [ "xz", "unxz" ] ) );
+BindGlobal( "AM_Decompressors", rec( gz := [ "gzip", "gunzip" ] ) );
 
 # Turn <blob> into <payload>, a directory, as <format> says.  A file artifact
 # gets a directory holding one file named <name>, so that both kinds have the
@@ -255,24 +251,11 @@ function( blob, payload, format, name )
     return check;
   fi;
 
-  if format = "zip" then
-    if AM_Program( "unzip" ) <> fail then
-      # '-b' switches off text conversion.  A zip records per entry whether
-      # it holds text, and unzip on Cygwin honours that by rewriting LF as
-      # CRLF -- which corrupts the data and breaks its checksum.
-      res := AM_Exec( fail, "unzip",
-                      [ "-q", "-o", "-b", blob, "-d", payload ] );
-    else
-      # bsdtar handles zip; GNU tar does not.
-      res := AM_Exec( fail, "tar", [ "-xf", blob, "-C", payload ] );
-    fi;
-  else
-    res := AM_Exec( fail, "tar",
-                    [ "-xf", blob, "-C", payload, "--no-same-owner" ] );
-    if res.code <> 0 then
-      # --no-same-owner is not universal
-      res := AM_Exec( fail, "tar", [ "-xf", blob, "-C", payload ] );
-    fi;
+  res := AM_Exec( fail, "tar",
+                  [ "-xf", blob, "-C", payload, "--no-same-owner" ] );
+  if res.code <> 0 then
+    # --no-same-owner is not universal
+    res := AM_Exec( fail, "tar", [ "-xf", blob, "-C", payload ] );
   fi;
 
   if res.code <> 0 then
@@ -297,12 +280,8 @@ function( format )
     fi;
     return JoinStringsWithSeparator(
                List( progs, x -> Concatenation( "'", x, "'" ) ), " or " );
-  elif format = "zip" and AM_Program( "unzip" ) <> fail then
-    return fail;
   elif AM_Program( "tar" ) <> fail then
     return fail;
-  elif format = "zip" then
-    return "'unzip' or 'tar'";
   fi;
   return "'tar'";
 end );
@@ -591,7 +570,6 @@ function( decl, explicit )
                name := decl.name,
                description := decl.description,
                license := decl.license,
-               provenance := decl.provenance,
                sha256 := decl.sha256,
                isDirectory := decl.isDirectory,
                format := done.entry.format,
