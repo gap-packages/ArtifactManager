@@ -4,18 +4,9 @@
 # hash.gd: SHA256 of files and strings.
 #
 
-# Normalise a SHA256 hex digest: lowercase, and left-padded to 64 characters.
-#
-# The padding is not cosmetic.  'HexSHA256' in GAP 4.12 to 4.15 formats the
-# digest with 'HexStringInt', which drops leading zero digits, so one digest in
-# 256 comes back shorter than 64 characters -- and one in 65536 shorter by two,
-# and so on.  GAP 4.16 pads (lib/files.gi), but we support 4.13, and package
-# authors will have generated their checksums on whatever GAP they had.  So we
-# normalise *both* the value we compute and the value we read from a manifest.
-# AtlasRep does the same thing for the same reason; see AGR_ChecksumFits in
-# atlasrep/gap/access.gi.
-#
-# Returns 'fail' if <str> is not a hex string of at most 64 digits.
+# Lowercase a SHA256 hex digest, or 'fail' if <str> is not exactly 64 hex
+# digits.  GAP pads its own digests since 4.16, so this only guards against a
+# manifest whose checksum is malformed.
 DeclareGlobalFunction( "AM_NormalizeHex" );
 
 # 'true' if <str> normalises to a valid SHA256 digest.

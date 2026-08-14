@@ -4,24 +4,20 @@
 gap> START_TEST("hash.tst");
 gap> Read(Filename(DirectoriesPackageLibrary("ArtifactManager","tst"),"common.g"));
 
-# Normalisation: lowercase, and left-padded to 64 digits.
-#
-# The padding is what protects us from GAP 4.12 to 4.15, where HexSHA256
-# drops leading zeros, so a package author's stored checksum may be short.
+# Normalisation: lowercase, and exactly 64 hex digits.
 gap> zeros := n -> ListWithIdenticalEntries(n, '0');;
-gap> AM_NormalizeHex("ABC") = Concatenation(zeros(61), "abc");
+gap> AM_NormalizeHex(Concatenation(zeros(61), "ABC"))
+>      = Concatenation(zeros(61), "abc");
 true
-gap> AM_NormalizeHex("abc") = AM_NormalizeHex("ABC");
-true
-gap> Length(AM_NormalizeHex(""));
-64
+gap> AM_NormalizeHex("abc");
+fail
 gap> AM_NormalizeHex(Concatenation(zeros(64), "0"));
 fail
-gap> AM_NormalizeHex("xyz");
+gap> AM_NormalizeHex(Concatenation(zeros(61), "xyz"));
 fail
 gap> AM_NormalizeHex(42);
 fail
-gap> AM_IsSHA256("abc");
+gap> AM_IsSHA256(Concatenation(zeros(61), "abc"));
 true
 gap> AM_IsSHA256("zz");
 false

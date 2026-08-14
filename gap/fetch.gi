@@ -604,9 +604,16 @@ end );
 ##
 BindGlobal( "AM_DeclarationOrError",
 function( pkg, name )
-  local decl;
+  local decl, problem;
   decl := ArtifactDeclaration( pkg, name );
   if decl = fail then
+    # Asking for one artifact is where a manifest we could not use has to be
+    # reported; merely listing what exists must not fail because of it.
+    problem := AM_DeclarationProblem( pkg, name );
+    if problem <> fail then
+      ErrorNoReturn( "the artifact '", pkg, "/", name, "' cannot be used: ",
+                     problem );
+    fi;
     ErrorNoReturn( "the package '", pkg, "' declares no artifact '", name,
                    "'.  Is the package installed, and does it have an ",
                    "artifacts.json?" );

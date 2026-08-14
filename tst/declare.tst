@@ -93,12 +93,11 @@ gap> AM_CheckDeclaration("p","a",rec(license:="MIT/X11",
 >      sha256:=AMT_WrongSha,format:="tar.gz")])){[1..14]};
 "'license' must"
 
-# Checksums are normalised when they are read, so an author who generated one
-# on GAP 4.14 (where leading zeros are dropped) is not left with a manifest
-# that never matches.
-gap> AM_CheckDeclaration("p","a",rec(file_sha256:="1",
->      download:=[rec(url:="https://x/a",sha256:="1",
->      format:="raw")])).download[1].sha256 = AM_NormalizeHex("1");
+# Checksums are lowercased when they are read, so a manifest written in
+# capitals is not left never matching.
+gap> AM_CheckDeclaration("p","a",rec(file_sha256:=UppercaseString(AMT_WrongSha),
+>      download:=[rec(url:="https://x/a",sha256:=UppercaseString(AMT_WrongSha),
+>      format:="raw")])).sha256 = AMT_WrongSha;
 true
 
 #
@@ -119,6 +118,21 @@ gap> Length(decls); decls[1].name; decls[1].description;
 # to upgrade -- never a parse error.
 gap> AM_ParseManifest("p", "{\"gapArtifactManifestVersion\": 99, \"package\": \"p\", \"artifacts\": {}}", "test");
 [  ]
+
+# Skipped, but the reason is kept.  Listing what exists must not fail because
+# one package's manifest is unusable; asking for an artifact of that package
+# must say why, rather than claim it was never declared.
+gap> AM_DeclarationProblem("p", "anything"){[1 .. 38]};
+"test: it uses manifest format 99, but "
+gap> AllArtifactDeclarations("p");
+[  ]
+gap> FetchArtifact("p", "anything");
+Error, the artifact 'p/anything' cannot be used: test: it uses manifest format\
+ 99, but this version of ArtifactManager only understands up to 1.  Please upg\
+rade ArtifactManager.
+gap> AM_FlushDeclarations();
+gap> AM_DeclarationProblem("p", "anything");
+fail
 
 # An unknown top-level key is refused for the same reason as an unknown field.
 gap> AM_ParseManifest("p", Concatenation("{\"gapArtifactManifestVersion\": 1,",

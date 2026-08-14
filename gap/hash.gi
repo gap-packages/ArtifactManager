@@ -12,11 +12,10 @@ function( str )
     return fail;
   fi;
   str := LowercaseString( ShallowCopy( str ) );
-  if Length( str ) > 64 or not ForAll( str, c -> c in AM_HexDigits ) then
+  if Length( str ) <> 64 or not ForAll( str, c -> c in AM_HexDigits ) then
     return fail;
   fi;
-  return Concatenation( ListWithIdenticalEntries( 64 - Length( str ), '0' ),
-                        str );
+  return str;
 end );
 
 InstallGlobalFunction( AM_IsSHA256,
@@ -151,13 +150,13 @@ function( path, prefix... )
   if data = fail then
     return fail;
   fi;
-  return AM_NormalizeHex( HexSHA256(
+  return LowercaseString( HexSHA256(
       CopyToStringRep( Concatenation( prefix, data ) ) ) );
 end );
 
 InstallGlobalFunction( AM_HexSHA256String,
 function( str )
-  return AM_NormalizeHex( HexSHA256( str ) );
+  return LowercaseString( HexSHA256( str ) );
 end );
 
 # 64 hex digits -> the 32 raw bytes they denote.

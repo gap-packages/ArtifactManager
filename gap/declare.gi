@@ -36,11 +36,52 @@ BindGlobal( "AM_RuntimeDeclarations", rec() );
 # Manifests already read, keyed by absolute path.
 BindGlobal( "AM_ManifestCache", rec() );
 
+# Why a package's manifest, or one artifact in it, could not be used, keyed by
+# lowercase package name.  Reading every package's manifest -- for a listing,
+# or for garbage collection -- must not fail because one of them is unusable,
+# but asking for a particular artifact must say what is wrong.
+BindGlobal( "AM_ManifestProblems", rec() );
+BindGlobal( "AM_ArtifactProblems", rec() );
+
+BindGlobal( "AM_NoteProblem",
+function( pkg, name, reason )
+  local key;
+  key := LowercaseString( pkg );
+  if name = fail then
+    AM_ManifestProblems.( key ) := reason;
+  else
+    if not IsBound( AM_ArtifactProblems.( key ) ) then
+      AM_ArtifactProblems.( key ) := rec();
+    fi;
+    AM_ArtifactProblems.( key ).( name ) := reason;
+  fi;
+end );
+
+# What stopped <pkg>/<name> from being declared, or 'fail' if nothing did.
+InstallGlobalFunction( AM_DeclarationProblem,
+function( pkg, name )
+  local key;
+  key := LowercaseString( pkg );
+  if IsBound( AM_ArtifactProblems.( key ) )
+     and IsBound( AM_ArtifactProblems.( key ).( name ) ) then
+    return AM_ArtifactProblems.( key ).( name );
+  elif IsBound( AM_ManifestProblems.( key ) ) then
+    return AM_ManifestProblems.( key );
+  fi;
+  return fail;
+end );
+
 InstallGlobalFunction( AM_FlushDeclarations,
 function()
   local key;
   for key in RecNames( AM_ManifestCache ) do
     Unbind( AM_ManifestCache.( key ) );
+  od;
+  for key in RecNames( AM_ManifestProblems ) do
+    Unbind( AM_ManifestProblems.( key ) );
+  od;
+  for key in RecNames( AM_ArtifactProblems ) do
+    Unbind( AM_ArtifactProblems.( key ) );
   od;
 end );
 
@@ -225,59 +266,54 @@ BindGlobal( "AM_KnownManifestKeys",
 
 InstallGlobalFunction( AM_ParseManifest,
 function( pkg, text, source )
-  local parsed, doc, res, key, decl, name;
+  local parsed, doc, res, key, decl, name, reject;
+
+  reject := function( reason )
+    Info( InfoArtifactManager, 1, "ignoring ", source, ": ", reason );
+    AM_NoteProblem( pkg, fail, Concatenation( source, ": ", reason ) );
+    return [];
+  end;
 
   parsed := AM_JsonToGap( text );
   if not parsed.success then
-    Info( InfoArtifactManager, 1, "ignoring ", source, ": ", parsed.error );
-    return [];
+    return reject( parsed.error );
   fi;
   doc := parsed.value;
 
   if not IsRecord( doc ) then
-    Info( InfoArtifactManager, 1, "ignoring ", source,
-          ": the top level must be an object" );
-    return [];
+    return reject( "the top level must be an object" );
   fi;
 
   if not ( IsBound( doc.gapArtifactManifestVersion )
            and IsPosInt( doc.gapArtifactManifestVersion ) ) then
-    Info( InfoArtifactManager, 1, "ignoring ", source,
-          ": no 'gapArtifactManifestVersion'" );
-    return [];
+    return reject( "no 'gapArtifactManifestVersion'" );
   fi;
 
   # Forward compatibility: never a parse error, always a clear message.
   if doc.gapArtifactManifestVersion > AM_ManifestFormat() then
-    Info( InfoArtifactManager, 1, "ignoring ", source, ": it uses manifest ",
-          "format ", doc.gapArtifactManifestVersion, ", but this version of ",
-          "ArtifactManager only understands up to ", AM_ManifestFormat(),
-          ".  Please upgrade ArtifactManager." );
-    return [];
+    return reject( Concatenation( "it uses manifest format ",
+               String( doc.gapArtifactManifestVersion ), ", but this version ",
+               "of ArtifactManager only understands up to ",
+               String( AM_ManifestFormat() ),
+               ".  Please upgrade ArtifactManager." ) );
   fi;
 
   # Mandatory, so that tooling outside GAP can read the package name here
   # instead of parsing PackageInfo.g.
   if not ( IsBound( doc.package ) and IsString( doc.package ) ) then
-    Info( InfoArtifactManager, 1, "ignoring ", source, ": no 'package'" );
-    return [];
+    return reject( "no 'package'" );
   elif LowercaseString( doc.package ) <> LowercaseString( pkg ) then
-    Info( InfoArtifactManager, 1, "ignoring ", source, ": it declares ",
-          "package '", doc.package, "' but belongs to '", pkg, "'" );
-    return [];
+    return reject( Concatenation( "it declares package '", doc.package,
+                       "' but belongs to '", pkg, "'" ) );
   fi;
 
   if not ( IsBound( doc.artifacts ) and IsRecord( doc.artifacts ) ) then
-    Info( InfoArtifactManager, 1, "ignoring ", source,
-          ": 'artifacts' must be an object" );
-    return [];
+    return reject( "'artifacts' must be an object" );
   fi;
 
   key := AM_UnknownKeys( doc, AM_KnownManifestKeys );
   if not IsEmpty( key ) then
-    Info( InfoArtifactManager, 1, "ignoring ", source, ": ",
-          AM_ComplainUnknown( key, "" ) );
-    return [];
+    return reject( AM_ComplainUnknown( key, "" ) );
   fi;
 
   res := [];
@@ -287,6 +323,7 @@ function( pkg, text, source )
       # One bad artifact must not take the whole manifest with it.
       Info( InfoArtifactManager, 1, source, ": skipping artifact '", name,
             "': ", decl );
+      AM_NoteProblem( pkg, name, decl );
     else
       decl.source := source;
       Add( res, decl );

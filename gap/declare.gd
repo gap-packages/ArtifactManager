@@ -143,6 +143,12 @@ DeclareGlobalFunction( "DeclareArtifacts" );
 # Whether <format> names a single file rather than an archive.
 DeclareGlobalFunction( "AM_IsSingleFile" );
 
+# Why <pkg>/<name> is not declared, as a string, or 'fail' if no manifest
+# problem explains it.  Reading every package's manifest -- for a listing, or
+# for garbage collection -- must not fail because one of them is unusable;
+# asking for one artifact must say what is wrong.
+DeclareGlobalFunction( "AM_DeclarationProblem" );
+
 #! @Description
 #!   The declaration of the artifact <A>name</A> of package <A>pkg</A>, as a
 #!   record, or <K>fail</K> if there is no such artifact.

@@ -146,7 +146,7 @@ The full field reference is in the manual, chapter "Declaring artifacts".
 
 ## Requirements
 
-GAP 4.13 or newer, and the [utils](https://github.com/gap-packages/utils)
+GAP 4.16 or newer, and the [utils](https://github.com/gap-packages/utils)
 package for downloading.
 
 The [IO](https://github.com/gap-packages/io) package is strongly recommended.
