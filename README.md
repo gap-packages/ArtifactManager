@@ -1,5 +1,10 @@
 # The GAP package ArtifactManager
 
+> [!WARNING]
+> This package is still in early development. Do not yet use this for anything critical,
+> and expect major changes to the interface before this goes public.
+> Max Horn and Lars Göttgens
+
 Many GAP packages come with large data sets. Shipping them inside the package
 archive makes the package huge for everybody, including the people who never
 touch the data. The usual alternatives are worse: telling users to download a
