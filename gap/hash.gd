@@ -15,12 +15,8 @@ DeclareGlobalFunction( "AM_IsSHA256" );
 # SHA256 of the *bytes* of the file <path>, as 64 lowercase hex digits,
 # or 'fail'.
 #
-# TODO(U2, gap#6505): GAP should have 'HexSHA256File'.  The kernel already
-# has the pieces -- GAP_SHA256_INIT/UPDATE/FINAL in src/sha256.c -- and
-# lib/files.gi carries a TODO about exactly this.  Today 'HexSHA256(<stream>)'
-# does 'ReadAll', i.e. it pulls the whole file into memory, and the only binary
-# safe way to read a file at all is via the IO package.  So this function is
-# three implementations where there should be one call.
+# With an optional <prefix>, the digest is of <prefix> followed by the file's
+# bytes, which is what a git object hash needs.
 DeclareGlobalFunction( "AM_HexSHA256File" );
 
 # SHA256 of a string, normalised.

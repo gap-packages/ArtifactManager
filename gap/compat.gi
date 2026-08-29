@@ -112,39 +112,22 @@ end );
 #F  AM_Now( )
 #F  AM_TimeString( )
 ##
-InstallGlobalFunction( AM_Now,
-function()
-  local res;
-  # TODO(U1): GAP core should offer the current time; then this is one call.
-  if AM_HaveIO() then
-    return ValueGlobal( "IO_gettimeofday" )().tv_sec;
-  fi;
-  if AM_Program( "date" ) <> fail then
-    res := AM_ExecQuiet( fail, "date", [ "+%s" ] );
-    if res.code = 0 then
-      res := Int( Filtered( res.output, c -> c in "0123456789" ) );
-      if res <> fail then
-        return res;
-      fi;
-    fi;
-  fi;
-  return fail;
-end );
+InstallGlobalFunction( AM_Now, CurrentSecondsSinceEpoch );
 
+# UTC, in the shape ISO 8601 uses, e.g. "2026-08-29T13:24:18Z".
 InstallGlobalFunction( AM_TimeString,
 function()
-  local res;
-  if AM_Program( "date" ) <> fail then
-    res := AM_ExecQuiet( fail, "date", [ "+%Y-%m-%dT%H:%M:%S" ] );
-    if res.code = 0 then
-      return Filtered( res.output, c -> c <> '\n' );
+  local d, two;
+  d := DMYhmsSeconds( CurrentSecondsSinceEpoch() );
+  two := function( n )
+    if n < 10 then
+      return Concatenation( "0", String( n ) );
     fi;
-  fi;
-  res := AM_Now();
-  if res = fail then
-    return "unknown";
-  fi;
-  return Concatenation( "unix:", String( res ) );
+    return String( n );
+  end;
+  return Concatenation( String( d[3] ), "-", two( d[2] ), "-", two( d[1] ),
+                        "T", two( d[4] ), ":", two( d[5] ), ":", two( d[6] ),
+                        "Z" );
 end );
 
 

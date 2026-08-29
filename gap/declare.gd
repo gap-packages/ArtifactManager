@@ -16,6 +16,12 @@
 #! package being loaded the garbage collector will still know which artifacts
 #! are still wanted.
 #!
+#! JSON rather than a &GAP; file read with <C>ReadAsFunction</C>: garbage
+#! collection has to read the manifests of packages that are not loaded, and
+#! executing code from every installed package during a sweep is worse than
+#! parsing data.  A remote table of contents, which a later version wants,
+#! must not be executed at all.
+#!
 #! @BeginLog
 #! {
 #!   "gapArtifactManifestVersion": 1,

@@ -53,12 +53,10 @@ DeclareGlobalFunction( "CreateDirectoryRecursivelyOrError" );
 ##  Internal helpers.  Not documented, not part of the API.
 ##
 
-# TODO(U1, gap#6504): GAP has no wall clock. 'Runtime()' is CPU time.  We need
-# real time for the last-used stamps that the future garbage collector reads.
-# Returns the number of seconds since the epoch, or 'fail' if we cannot tell.
+# Seconds since the epoch, for the last-used stamps a garbage collector reads.
 DeclareGlobalFunction( "AM_Now" );
 
-# TODO(U1): a human readable timestamp for the same reason.
+# The same instant as a string, for humans reading a metadata file.
 DeclareGlobalFunction( "AM_TimeString" );
 
 # TODO(U7): GAP has no way to ask for the size of a file.

@@ -23,143 +23,31 @@ function( str )
   return AM_NormalizeHex( str ) <> fail;
 end );
 
-# The kernel hands back eight 32-bit words; turn them into 64 hex digits.
-BindGlobal( "AM_HexOfSHA256Words",
-function( words )
-  local res, w, hex;
-  res := "";
-  for w in words do
-    hex := LowercaseString( HexStringInt( w ) );
-    Append( res, ListWithIdenticalEntries( 8 - Length( hex ), '0' ) );
-    Append( res, hex );
-  od;
-  return res;
-end );
-
-# The first 64-hex-digit token in <output>, or 'fail'.  Copes with the output
-# of sha256sum ("<hex>  <file>"), shasum, and openssl ("SHA256(f)= <hex>").
-BindGlobal( "AM_ExtractDigest",
-function( output )
-  local token;
-  for token in SplitString( output, " \t\n=()" ) do
-    if Length( token ) = 64 and ForAll( token, c -> c in AM_HexDigits ) then
-      return token;
-    fi;
-  od;
-  return fail;
-end );
-
-BindGlobal( "AM_MaxUnsafeHashSize", 64 * 1024 * 1024 );
-
-# An argv string cannot carry a NUL byte, so a prefix that has one has to
-# reach 'printf %b' as the two characters '\' and '0' instead.
-BindGlobal( "AM_PrintfEscapes",
-function( str )
-  local res, c;
-  res := "";
-  for c in str do
-    if c = '\000' then
-      Append( res, "\\0" );
-    elif c = '\\' then
-      Append( res, "\\\\" );
-    else
-      Add( res, c );
-    fi;
-  od;
-  return res;
-end );
-
 InstallGlobalFunction( AM_HexSHA256File,
 function( path, prefix... )
-  local f, state, chunk, prog, res, digest, size, data, script;
+  local s;
 
   if not IsExistingFile( path ) then
     return fail;
   fi;
-  if IsEmpty( prefix ) then
-    prefix := "";
-  else
-    prefix := prefix[1];
+
+  s := SHA256State();
+  if not IsEmpty( prefix ) then
+    UpdateSHA256( s, prefix[1] );
   fi;
-
-  # (1) IO package: chunked and binary safe, constant memory.
-  if AM_HaveIO() then
-    f := ValueGlobal( "IO_File" )( path, "r" );
-    if f <> fail then
-      state := GAP_SHA256_INIT();
-      GAP_SHA256_UPDATE( state, prefix );
-      repeat
-        chunk := ValueGlobal( "IO_Read" )( f, 1048576 );
-        if IsString( chunk ) and Length( chunk ) > 0 then
-          GAP_SHA256_UPDATE( state, chunk );
-        fi;
-      until not IsString( chunk ) or Length( chunk ) = 0;
-      ValueGlobal( "IO_Close" )( f );
-      if chunk = fail then
-        Info( InfoArtifactManager, 1, "error while reading '", path, "'" );
-        return fail;
-      fi;
-      return AM_HexOfSHA256Words( GAP_SHA256_FINAL( state ) );
-    fi;
-  fi;
-
-  # (2) an external checksum tool.  A prefix has to reach it through a pipe;
-  # 'printf' and 'cat' write it and the file in one stream.
-  for prog in [ [ "sha256sum", [ path ], "sha256sum" ],
-                [ "shasum", [ "-a", "256", path ], "shasum -a 256" ],
-                [ "openssl", [ "dgst", "-sha256", path ],
-                  "openssl dgst -sha256" ] ] do
-    if AM_Program( prog[1] ) <> fail then
-      if prefix = "" then
-        res := AM_ExecQuiet( fail, prog[1], prog[2] );
-      else
-        script := Concatenation( "{ printf %b \"$0\"; cat \"$1\"; } | ",
-                                 prog[3] );
-        res := AM_ExecQuiet( fail, "sh",
-                   [ "-c", script, AM_PrintfEscapes( prefix ), path ] );
-      fi;
-      if res.code = 0 then
-        digest := AM_ExtractDigest( res.output );
-        if digest <> fail then
-          Info( InfoArtifactManager, 3, "hashed '", path, "' using ",
-                prog[1] );
-          return digest;
-        fi;
-      fi;
-    fi;
-  od;
-
-  # (3) Last resort.  'StringFile' goes through 'InputTextFile', which
-  # transparently gunzips files whose name ends in '.gz', and on systems that
-  # distinguish text and binary mode also translates line endings -- either
-  # of which silently produces the wrong digest.  We only get away with it
-  # because everything we hash is staged under a name with no extension (see
-  # AM_StagingDirectory), and we refuse to do it for large files.
-  size := AM_FileSize( path );
-  if size <> fail and size > AM_MaxUnsafeHashSize then
-    Info( InfoArtifactManager, 1,
-          "cannot compute the SHA256 checksum of '", path, "' (",
-          AM_HumanSize( size ), "): please load the IO package, or install ",
-          "one of 'sha256sum', 'shasum', 'openssl'" );
+  # 'false': the digest describes the bytes on disk, so a '.gz' file is not
+  # decompressed on the way.
+  if UpdateSHA256File( s, path, false ) = fail then
     return fail;
   fi;
-  Info( InfoArtifactManager, 1,
-        "computing a SHA256 checksum via StringFile; this is not binary ",
-        "safe.  Load the IO package or install 'sha256sum' to be sure." );
-  data := StringFile( path );
-  if data = fail then
-    return fail;
-  fi;
-  return LowercaseString( HexSHA256(
-      CopyToStringRep( Concatenation( prefix, data ) ) ) );
+  return HexSHA256( s );
 end );
 
 InstallGlobalFunction( AM_HexSHA256String,
 function( str )
-  return LowercaseString( HexSHA256( str ) );
+  return HexSHA256( str );
 end );
 
-# 64 hex digits -> the 32 raw bytes they denote.
 BindGlobal( "AM_BytesOfHex",
 function( hex )
   local res, i;
@@ -210,11 +98,15 @@ function( dir )
         if size = fail then
           return fail;
         fi;
-        hex := AM_HexSHA256File( full, CopyToStringRep( Concatenation(
-                   "blob ", String( size ), "\000" ) ) );
-        if hex = fail then
+        # A git blob is its header followed by the contents, and the file
+        # never has to be read into memory to hash it.
+        hex := SHA256State();
+        UpdateSHA256( hex, CopyToStringRep( Concatenation(
+            "blob ", String( size ), "\000" ) ) );
+        if UpdateSHA256File( hex, full, false ) = fail then
           return fail;
         fi;
+        hex := HexSHA256( hex );
         if AM_IsExecutableFile( full ) then
           Add( entries, [ name, "100755", name, hex ] );
         else

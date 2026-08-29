@@ -22,8 +22,8 @@ from zero on any interruption.
 
 | # | What is missing | Why we need it | Status |
 |---|---|---|---|
-| U1 | **A wall clock.** `Runtime()` is CPU time; there is no way to ask for the current date or time without the IO package or shelling out to `date`. | Last-use timestamps, and the orphan timestamps the planned garbage collection needs. | [gap#6504](https://github.com/gap-system/gap/pull/6504), open |
-| U2 | **`HexSHA256File(<filename>)`.** `HexSHA256(<stream>)` calls `ReadAll`, i.e. it pulls the whole file into memory; `lib/files.gi` carries a TODO saying so. The kernel already has `GAP_SHA256_INIT`/`UPDATE`/`FINAL` in `src/sha256.c`, so only a chunked driver is missing. | Verifying a download without reading it all at once. This one addition would replace all three implementations in `gap/hash.gi`. | [gap#6505](https://github.com/gap-system/gap/pull/6505), open, **blocking** |
+| U1 | **A wall clock.** `Runtime()` is CPU time; there is no way to ask for the current date or time without the IO package or shelling out to `date`. | Last-use timestamps, and the orphan timestamps the planned garbage collection needs. | **merged**, [gap#6504](https://github.com/gap-system/gap/pull/6504) |
+| U2 | **`HexSHA256File(<filename>)`.** `HexSHA256(<stream>)` calls `ReadAll`, i.e. it pulls the whole file into memory; `lib/files.gi` carries a TODO saying so. The kernel already has `GAP_SHA256_INIT`/`UPDATE`/`FINAL` in `src/sha256.c`, so only a chunked driver is missing. | Verifying a download without reading it all at once. This one addition would replace all three implementations in `gap/hash.gi`. | **merged**, [gap#6505](https://github.com/gap-system/gap/pull/6505), and the accumulator in [gap#6509](https://github.com/gap-system/gap/pull/6509) |
 | U3 | **`Process` cannot capture stderr.** | Without it a failing `tar` gives us an exit code and nothing else, which is the difference between an actionable error message and "exit code 2". | [gap#4657](https://github.com/gap-system/gap/issues/4657), open |
 | U4 | **A safe, ergonomic process runner.** `Exec` goes through a shell; `Process` is correct but clumsy. | `AM_Exec` in `gap/compat.gi` is a strictly worse version of the proposed `Exec2` and should be deleted once it exists. | [gap#5103](https://github.com/gap-system/gap/pull/5103), open draft |
 | U5 | **`mkdir -p`, with permission fixing and good errors.** `CreateDir` is a single-level `mkdir(2)`. | Asked for in [gap#4285](https://github.com/gap-system/gap/issues/4285) itself. `AutoDoc_CreateDirIfMissing` and `PKGMAN_CreateDirRecursively` are two partial reimplementations; `CreateDirectoryRecursively` here is a third, and is meant to be upstreamed. | to file |
@@ -40,8 +40,8 @@ not need a compiled dependency in order to hash a file or move it.
 
 | # | What is wrong | Status |
 |---|---|---|
-| U10 | **`Download` modifies the option record it is given**, assigning `opt.verifyCert` and `opt.maxTime` in place. Callers must therefore pass a throwaway record every time. One-line fix. Note that with the *default* preferences neither assignment fires, so this is invisible to anyone testing a stock configuration — which is what makes it worth fixing rather than documenting. | [utils#102](https://github.com/gap-packages/utils/pull/102), open |
-| U11 | **Inconsistent cleanup after a failure.** The `wget` backend removes a partial target file; the `curl` backend leaves it behind. `utils`' own `tst/download.tst` says the backends "do not behave consistently in the case of failure… which makes them useless as automatic tests" — that admission is the bug report. | [utils#103](https://github.com/gap-packages/utils/pull/103), open |
+| U10 | **`Download` modifies the option record it is given**, assigning `opt.verifyCert` and `opt.maxTime` in place. Callers must therefore pass a throwaway record every time. One-line fix. Note that with the *default* preferences neither assignment fires, so this is invisible to anyone testing a stock configuration — which is what makes it worth fixing rather than documenting. | **merged**, [utils#102](https://github.com/gap-packages/utils/pull/102) |
+| U11 | **Inconsistent cleanup after a failure.** The `wget` backend removes a partial target file; the `curl` backend leaves it behind. `utils`' own `tst/download.tst` says the backends "do not behave consistently in the case of failure… which makes them useless as automatic tests" — that admission is the bug report. | **merged**, [utils#103](https://github.com/gap-packages/utils/pull/103); follow-up fix on `mh/download-keep-existing` |
 | U12 | **No resume.** A transfer that is killed restarts from zero. | [utils#105](https://github.com/gap-packages/utils/pull/105), open, **blocking** |
 | U13 | **Backends advertise no capabilities**, so a caller who needs one that streams to a file, or follows redirects, has to match on backend *names*. `AM_BackendRank` in `gap/fetch.gi` is exactly that hack. A per-backend record with `streamsToFile`, `followsRedirects`, `supportsTimeout`, `supportsHttps` would turn it into a query. `Download_Methods` should also be documented, since it is the intended extension point. | to file |
 | U14 | **No progress reporting**, so a download of several minutes looks like a hung GAP. | to file |
@@ -82,8 +82,10 @@ catches it, since neither repository tests against the other's branch.
 
 ## What is left
 
-Six PRs are open — U1, U2, U10, U11, U12, U15 — which covers every **blocking**
-item. Order for the rest:
+U1, U2, U10 and U11 have landed, and requiring GAP 4.17 retired their shims
+here: `AM_HexSHA256File` is four lines over `SHA256State`, and `AM_Now` is one
+call.  U12 (utils#105) and U15 (curlInterface#62) are still open, together
+with utils#104.  Order for the rest:
 
 1. **U4 + U3** — the `Exec2` draft already exists, and together they improve
    every error message this package can produce. Cheapest useful win.

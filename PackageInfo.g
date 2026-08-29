@@ -63,7 +63,7 @@ PackageDoc := rec(
 ),
 
 Dependencies := rec(
-  GAP := ">= 4.16",
+  GAP := ">= 4.17",
   # 'utils' provides 'Download', the GAP ecosystem's common download API.
   NeededOtherPackages := [ [ "utils", ">= 0.77" ] ],
   # 'IO' stands in for functionality GAP itself does not provide yet: file

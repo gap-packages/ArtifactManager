@@ -24,10 +24,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # Only 'devel' until GAP 4.17 is released.  This package needs the
+        # SHA256 accumulator and CurrentSecondsSinceEpoch, which are in 4.17
+        # but not in 4.16, so 'latest' and 'minimal' both resolve to a GAP
+        # that cannot load it.  Restore them once 4.17 ships.
         gap-version:
           - 'devel'   # current GAP development version from git
-          - 'latest'  # latest GAP release
-          - 'minimal' # oldest GAP release supported by this package
         os:
           - ubuntu
         # This package shells out to tar, unzip and the checksum tools, and

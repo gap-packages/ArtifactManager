@@ -358,14 +358,6 @@ function( store, key )
   AM_SessionState.touched.( id ) := true;
 
   now := AM_Now();
-  if now = fail then
-    # TODO(U1): without a wall clock we cannot record this at all, and the
-    # recency sweep planned for the garbage collector will have nothing to go
-    # on.  Say so once rather than silently inventing a timestamp.
-    Info( InfoArtifactManager, 3,
-          "cannot record last-use time: no clock available" );
-    return;
-  fi;
 
   path := AM_UsedPath( store, key );
   if CreateDirectoryRecursively(
