@@ -1,22 +1,16 @@
 # Upstream work
 
-Building ArtifactManager turned up a set of gaps in GAP itself and in the
-packages it builds on. Every workaround in this package is paired with one of
-the items below, and the corresponding call site carries a `TODO(U<n>)`
-comment naming it. The point is that `gap/compat.gi` should **shrink** over
-time, not calcify.
-
-Grep for the whole list:
+The gaps in GAP and in neighbouring packages that this package works around.
+Every workaround carries a `TODO(U<n>)` comment naming its row here, so this
+file answers "why is this code shaped like that":
 
 ```
 grep -rn 'TODO(U' gap/
 ```
 
-Items marked **blocking** are why the MVP is scoped to artifacts of roughly
-1 GB or less. Handling something like transgrp's 30 GB degree-48 data properly
-needs U2, U12 and U15; until those land, claiming support for it would only
-produce a code path that exhausts memory on the wrong backend and restarts
-from zero on any interruption.
+It is a reference, not a worklist. What we intend to *do* about these lives in
+[tasks/](tasks/) — `make tasks`. The point of both is that `gap/compat.gi`
+should shrink over time, not calcify: U1 and U2 landing removed a third of it.
 
 ## GAP
 
@@ -80,15 +74,14 @@ catches it, since neither repository tests against the other's branch.
 | U17 | **No checksum verification of downloaded package archives at all.** `grep -i 'sha\|checksum\|md5'` over `gap/` and `doc/` returns nothing. | to file |
 | U18 | **Weak archive safety.** `PKGMAN_TarTopDirectory` requires exactly one top-level directory but does not reject absolute paths or `..` members. It is currently the only tarbomb guard in the GAP ecosystem. The stricter check in `AM_CheckArchiveMembers` is worth contributing back. | to file |
 
-## What is left
+## Status at a glance
 
-U1, U2, U10 and U11 have landed, and requiring GAP 4.17 retired their shims
-here: `AM_HexSHA256File` is four lines over `SHA256State`, and `AM_Now` is one
-call.  U12 (utils#105) and U15 (curlInterface#62) are still open, together
-with utils#104.  Order for the rest:
+Landed: U1, U2, U10, U11. Requiring GAP 4.17 retired their shims here —
+`AM_HexSHA256File` is four lines over `SHA256State`, and `AM_Now` is one call.
 
-1. **U4 + U3** — the `Exec2` draft already exists, and together they improve
-   every error message this package can produce. Cheapest useful win.
-2. **U9** — drafted in [upstream-drafts.md](upstream-drafts.md), not filed.
-3. **U5, U6, U7, U8** — the rest of what would retire `gap/compat.gi`.
-4. **U13, U14, U16, U17, U18** — improvements to neighbouring packages.
+Open PRs: U12 (utils#105), U15 (curlInterface#62), and utils#104 alongside
+them — task 1.
+
+Not filed: U5, U6, U7, U8 (tasks 8 and 10), U9 (task 9, drafted), U13 and U14
+(tasks 11 and 12), U16 to U18 (task 13). U3 and U4 wait on gap#4657 and
+gap#5103, which are other people's.

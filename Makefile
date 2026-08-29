@@ -1,4 +1,4 @@
-.PHONY: run doc html clean check
+.PHONY: run doc html clean check tasks
 
 GAP ?= gap
 GAP_ARGS = -q --quitonbreak --packagedirs $(abspath .)
@@ -18,3 +18,7 @@ clean:
 
 check:
 	$(GAP) $(GAP_ARGS) tst/testall.g
+
+# what is there to work on; see dev/tasks/README.md
+tasks:
+	@dev/tasks.sh

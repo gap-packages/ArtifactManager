@@ -41,3 +41,12 @@ delete it. The file should shrink; do not let it grow.
 `dev/plan.md` is the original design plan, kept for the reasoning behind
 decisions that are not obvious from the code. It is history: where it and the
 code disagree, the code is right.
+
+## Where work is tracked
+
+`make tasks` lists what is open, ready first. One file per task in
+`dev/tasks/`, moved to `dev/tasks/done/` when finished; see
+[dev/tasks/README.md](dev/tasks/README.md) for the frontmatter and for what
+belongs there rather than in `dev/upstream.md` or a GitHub issue.
+
+Cite the task id in the commit that closes it.
