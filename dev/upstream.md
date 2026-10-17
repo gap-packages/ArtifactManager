@@ -78,9 +78,9 @@ window for anything that changes behaviour.
 
 | # | What is wrong | Status |
 |---|---|---|
-| U16 | **`PKGMAN_Exec` joins arguments with spaces and runs them through `sh -c`** (`gap/PackageManager.gi:150`). Any path containing a space breaks; any path containing a shell metacharacter injects. This is why ArtifactManager cannot reuse `PKGMAN_ExtractArchive`, which is built on it. `Process` fixes it; `RunProcess` (U4) needs GAP 4.17. Related: [PackageManager#104](https://github.com/gap-packages/PackageManager/issues/104) (stop merging stderr into stdout). | to file |
+| U16 | **`PKGMAN_Exec` joins arguments with spaces and runs them through `sh -c`** (`gap/PackageManager.gi:298`). Any path containing a space breaks; any path containing a shell metacharacter injects. This is why ArtifactManager cannot reuse `PKGMAN_ExtractArchive`, which is built on it. `Process` fixes it; `RunProcess` (U4) needs GAP 4.17. Related: [PackageManager#104](https://github.com/gap-packages/PackageManager/issues/104) (stop merging stderr into stdout). | to file |
 | U17 | **No checksum verification of downloaded package archives at all.** `grep -i 'sha\|checksum\|md5'` over `gap/` and `doc/` returns nothing. The package distro publishes `ArchiveSHA256` for every package, but PackageManager reads `PackageInfo.g` URLs rather than the distro ([PackageManager#84](https://github.com/gap-packages/PackageManager/issues/84)). | to file |
-| U18 | **Weak archive safety.** `PKGMAN_TarTopDirectory` requires exactly one top-level directory but does not reject absolute paths or `..` members. It is currently the only tarbomb guard in the GAP ecosystem. The stricter check in `AM_CheckArchiveMembers` is worth contributing back. | to file |
+| U18 | **Weak archive safety.** `PKGMAN_TarTopDirectory` requires exactly one top-level directory but does not reject absolute paths or `..` members. | **not a hole**: bsdtar 3.5 and GNU tar 1.35 both refuse `..`, absolute and through-symlink members and exit non-zero, so the install fails anyway. A check would only improve the error message. Not worth a PR. |
 
 ## Status at a glance
 
@@ -91,4 +91,4 @@ U15 (`AM_BackendRank`).
 Filed, open: U3 (gap#4657, someone else's), U19 and U20 (GAP.jl#1454, #1455).
 
 Not filed: U5 to U8 (tasks 8 and 10), U9 (task 9, drafted), U13 and U14
-(tasks 11 and 12), U16 to U18 (task 13).
+(tasks 11 and 12), U16 and U17 (task 13).
